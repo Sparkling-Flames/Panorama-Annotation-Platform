@@ -20,27 +20,38 @@ CSRF_COOKIE_SECURE = False
 E2E_MEDIA_MANIFEST: dict[str, Any] = {
     "objects": [
         {
-            "content_length": 8_388_608,
-            "content_sha256": "a" * 64,
-            "crc64ecma": "12345678901234567890",
+            "content_length": 109,
+            "content_sha256": "1f395f818a59308471cd4998d65be7f2d8ea81ea76d2bb521194e0f2d5498b8e",
+            "crc64ecma": "13918488817461282678",
             "format": "png",
-            "height": 2048,
+            "height": 16,
             "source_key": "incoming/e2e/high.png",
             "version_id": "e2e-high-v1",
-            "width": 4096,
+            "width": 32,
         },
         {
-            "content_length": 1_048_576,
-            "content_sha256": "b" * 64,
-            "crc64ecma": "1234567890",
+            "content_length": 214,
+            "content_sha256": "2536b2aa8248cfec5b5165ccbd69bcbb0510b74547c13232926772a41fc2b26c",
+            "crc64ecma": "6145541332926041938",
             "format": "jpeg",
-            "height": 1024,
+            "height": 8,
             "source_key": "incoming/e2e/compressed.jpg",
             "version_id": "e2e-compressed-v1",
-            "width": 2048,
+            "width": 16,
         },
     ],
     "schema_version": 1,
+}
+
+E2E_MEDIA_PREVIEW_URLS = {
+    "incoming/e2e/high.png": (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAIAAAD4YuoOAAAANElEQVR4nO3PMREAIAwEwYXBAFUM4F8jEr5Klyuu3wVc1fStueMV6PoIYiOIH0FsBPHtgg/rgQ2SFRRBtwAAAABJRU5ErkJggg=="
+    ),
+    "incoming/e2e/compressed.jpg": (
+        "data:image/jpeg;base64,"
+        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/wAALCAAIABABAREA/8QAFQABAQAAAAAAAAAAAAAAAAAABgf/xAAjEAABAgUDBQAAAAAAAAAAAAACAREFIgQAAwcSIQYWIzNR/9oACAEBAAA/AAmm0C9Uny7X1ZG+wNOKyK4JYlmajoJX85orFyJJKKEbEjLs2vyl/wD/2Q=="
+    ),
 }
 
 
@@ -65,8 +76,8 @@ class E2ECosClient:
             "x-cos-version-id": str(entry["version_id"]),
         }
 
-    def get_presigned_url(self, **_kwargs: object) -> str:
-        return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+    def get_presigned_url(self, **kwargs: object) -> str:
+        return E2E_MEDIA_PREVIEW_URLS[str(kwargs["Key"])]
 
 
 def e2e_media_catalog() -> Any:

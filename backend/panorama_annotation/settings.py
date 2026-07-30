@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "identity",
     "media",
+    "work",
 ]
 
 AUTH_USER_MODEL = "identity.User"

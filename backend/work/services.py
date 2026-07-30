@@ -1,0 +1,191 @@
+from __future__ import annotations
+
+from collections.abc import Iterable
+from uuid import UUID
+
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.utils import timezone
+from media.models import Asset, MediaImportPreview, MediaVariant
+
+from .models import Task, TaskMediaVariant
+
+DEFAULT_META_SCHEMA_VERSION = "v1"
+DEFAULT_META_COPY_VERSION = "v1"
+
+
+@transaction.atomic
+def create_task_draft(
+    *,
+    asset: Asset,
+    media_variants: Iterable[MediaVariant],
+    mode: str,
+    external_task_key: str = "",
+    dataset_source: str = "",
+    import_batch_key: str = "",
+    previous_round_task: Task | None = None,
+    source_media_import_preview: MediaImportPreview | None = None,
+) -> Task:
+    variants = tuple(media_variants)
+    if not variants:
+        raise ValidationError(
+            "A task requires at least one media variant.", code="task_media_required"
+        )
+    if any(variant.asset_id != asset.asset_id for variant in variants):
+        raise ValidationError(
+            "All task media must belong to its asset.", code="task_media_mismatch"
+        )
+    if any(variant.published_at is None for variant in variants):
+        raise ValidationError(
+            "Task media must already be published.", code="task_media_unpublished"
+        )
+    if mode == Task.Mode.MANUAL:
+        prediction_exposed, model_issue_enabled, assist_enabled = False, False, False
+    elif mode == Task.Mode.SEMI:
+        prediction_exposed, model_issue_enabled, assist_enabled = True, True, False
+    else:
+        raise ValidationError("Unsupported task mode.", code="task_mode_invalid")
+
+    task = Task.objects.create(
+        asset=asset,
+        mode=mode,
+        meta_schema_version=DEFAULT_META_SCHEMA_VERSION,
+        meta_copy_version=DEFAULT_META_COPY_VERSION,
+        prediction_exposed=prediction_exposed,
+        model_issue_enabled=model_issue_enabled,
+        assist_enabled=assist_enabled,
+        external_task_key=external_task_key,
+        dataset_source=dataset_source,
+        import_batch_key=import_batch_key,
+        previous_round_task=previous_round_task,
+        source_media_import_preview=source_media_import_preview,
+    )
+    TaskMediaVariant.objects.bulk_create(
+        TaskMediaVariant(task=task, media_variant=variant) for variant in variants
+    )
+    return task
+
+
+@transaction.atomic
+def publish_task(*, task_id: UUID) -> Task:
+    task = Task.objects.select_for_update().get(task_id=task_id)
+    if task.status != Task.Status.DRAFT:
+        raise ValidationError("Only draft tasks can be published.", code="task_not_draft")
+    if task.mode == Task.Mode.SEMI:
+        raise ValidationError(
+            "Semi tasks require the future frozen PredictionArtifact service.",
+            code="semi_prediction_not_ready",
+        )
+    if not TaskMediaVariant.objects.filter(task=task).exists():
+        raise ValidationError("A task requires allowed media.", code="task_media_required")
+    task.status = Task.Status.PUBLISHED
+    task.published_at = timezone.now()
+    task.save(update_fields=["published_at", "status"])
+    return task
+
+
+@transaction.atomic
+def tombstone_task(*, task_id: UUID, reason: str) -> Task:
+    task = Task.objects.select_for_update().get(task_id=task_id)
+    if task.status != Task.Status.DRAFT:
+        raise ValidationError("Only draft tasks can be tombstoned.", code="task_not_draft")
+    if not reason.strip():
+        raise ValidationError("A tombstone reason is required.", code="task_reason_required")
+    TaskMediaVariant.objects.filter(task=task).delete()
+    task.asset = None
+    task.mode = None
+    task.meta_schema_version = None
+    task.meta_copy_version = None
+    task.prediction_exposed = False
+    task.model_issue_enabled = False
+    task.assist_enabled = False
+    task.prediction_artifact_id = None
+    task.external_task_key = ""
+    task.dataset_source = ""
+    task.import_batch_key = ""
+    task.previous_round_task = None
+    task.source_media_import_preview = None
+    task.status = Task.Status.TOMBSTONED
+    task.terminal_reason = reason.strip()
+    task.tombstoned_at = timezone.now()
+    task.save()
+    return task
+
+
+@transaction.atomic
+def cancel_task(*, task_id: UUID, reason: str) -> Task:
+    task = Task.objects.select_for_update().get(task_id=task_id)
+    clean_reason = reason.strip()
+    if task.status == Task.Status.CANCELLED and task.terminal_reason == clean_reason:
+        return task
+    if task.status != Task.Status.PUBLISHED:
+        raise ValidationError("Only published tasks can be cancelled.", code="task_not_published")
+    if not clean_reason:
+        raise ValidationError("A cancellation reason is required.", code="task_reason_required")
+    task.status = Task.Status.CANCELLED
+    task.terminal_reason = clean_reason
+    task.cancelled_at = timezone.now()
+    task.save(update_fields=["cancelled_at", "status", "terminal_reason"])
+    return task
+
+
+@transaction.atomic
+def supersede_task(*, task_id: UUID, replacement_task_id: UUID, reason: str) -> Task:
+    if task_id == replacement_task_id:
+        raise ValidationError("A task cannot replace itself.", code="task_replacement_invalid")
+    tasks = {
+        task.task_id: task
+        for task in Task.objects.select_for_update()
+        .filter(task_id__in=(task_id, replacement_task_id))
+        .order_by("task_id")
+    }
+    task = tasks[task_id]
+    replacement = tasks[replacement_task_id]
+    clean_reason = reason.strip()
+    if (
+        task.status == Task.Status.SUPERSEDED
+        and task.replacement_task_id == replacement_task_id
+        and task.terminal_reason == clean_reason
+    ):
+        return task
+    if task.status != Task.Status.PUBLISHED or replacement.status != Task.Status.PUBLISHED:
+        raise ValidationError(
+            "Both superseded and replacement tasks must be published.",
+            code="task_not_published",
+        )
+    if not clean_reason:
+        raise ValidationError("A supersede reason is required.", code="task_reason_required")
+    task.status = Task.Status.SUPERSEDED
+    task.replacement_task = replacement
+    task.terminal_reason = clean_reason
+    task.save(update_fields=["replacement_task", "status", "terminal_reason"])
+    return task
+
+
+@transaction.atomic
+def create_manual_annotation_round(
+    *,
+    source_preview_id: UUID,
+    asset: Asset,
+    media_variants: Iterable[MediaVariant],
+) -> Task:
+    source_preview = MediaImportPreview.objects.select_for_update().get(
+        preview_id=source_preview_id
+    )
+    asset = Asset.objects.select_for_update().get(asset_id=asset.asset_id)
+    existing = Task.objects.filter(source_media_import_preview=source_preview).first()
+    if existing is not None:
+        return existing
+    previous_round = (
+        Task.objects.filter(asset=asset, published_at__isnull=False)
+        .order_by("-created_at", "-task_id")
+        .first()
+    )
+    draft = create_task_draft(
+        asset=asset,
+        media_variants=media_variants,
+        mode=Task.Mode.MANUAL,
+        previous_round_task=previous_round,
+        source_media_import_preview=source_preview,
+    )
+    return publish_task(task_id=draft.task_id)

@@ -9,7 +9,7 @@ select = ["E4", "E7", "E9", "F", "I", "B", "UP", "SIM"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["backend/manage.py", "backend/panorama_annotation", "backend/identity", "backend/media", "scripts"]
+files = ["backend/manage.py", "backend/panorama_annotation", "backend/identity", "backend/media", "backend/work", "scripts"]
 mypy_path = ["backend"]
 plugins = ["mypy_django_plugin.main"]
 exclude = ["backend/tests/fixtures/security"]

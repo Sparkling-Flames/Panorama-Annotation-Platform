@@ -35,10 +35,20 @@ type ImportPreview = {
 };
 
 type Publication = {
-  annotation_round_request: { asset_id: string } | null;
+  annotation_round: {
+    asset_id: string;
+    mode: "manual";
+    previous_task_id: string | null;
+    status: "published";
+    task_id: string;
+  } | null;
   asset_id: string;
   created_asset: boolean;
-  media_variants: { media_variant_id: string; role: PreviewVariant["role"] }[];
+  media_variants: {
+    created: boolean;
+    media_variant_id: string;
+    role: PreviewVariant["role"];
+  }[];
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -48,13 +58,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   media_candidate_integrity_conflict: "COS 对象完整性校验失败，请重新登记该版本。",
   media_candidate_invalid: "COS 候选元数据无效。",
   media_candidate_not_found: "COS 候选不存在或已删除。",
+  media_format_unsupported: "媒体格式不受支持。",
   media_import_conflict: "媒体导入与现有数据冲突。",
   media_import_integrity_conflict: "预览后的 COS 对象信息已变化，请重新预览。",
   media_import_preview_cancelled: "该预览已取消。",
   media_import_preview_expired: "该预览已过期，请重新预览。",
   media_import_preview_not_found: "找不到该预览。",
+  media_panorama_aspect_ratio_invalid: "全景图必须是已拼接的 2:1 等距柱状图。",
+  media_skybox_not_supported: "首版不接收 skybox 面集合，请先在平台外完成拼接。",
   media_source_key_conflict: "该 source key 已绑定不同内容。",
-  media_variant_role_conflict: "该 Asset 的媒体角色已被其他变体占用。",
+  media_variant_mapping_incompatible: "媒体变体无法保持相同的规范化坐标语义。",
 };
 
 async function errorMessage(response: Response, fallback: string): Promise<string> {
@@ -331,7 +344,7 @@ export function MediaImportWizard() {
               }}
               type="checkbox"
             />
-            为既有 Asset 请求新的标注轮次
+            发布媒体后创建新的 Manual 标注轮次
           </label>
           <button disabled={isLoading} onClick={() => void previewPair()} type="button">
             预览配对
@@ -339,11 +352,18 @@ export function MediaImportWizard() {
         </div>
       ) : null}
 
-      {error ? <p className="media-import-error">{error}</p> : null}
+      {error ? (
+        <p className="media-import-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {preview ? (
         <section aria-label="媒体配对预览" className="media-import-preview">
           <p>{preview.asset_will_be_reused ? "将复用既有 Asset。" : "将创建新的 Asset。"}</p>
+          {preview.create_annotation_round ? (
+            <p>将创建 Manual Task；若该 Asset 尚无 Task，它将成为首轮。</p>
+          ) : null}
           <div className="media-import-images">
             {highResolutionPreview ? <VariantDetails variant={highResolutionPreview} /> : null}
             {compressedPreview ? <VariantDetails variant={compressedPreview} /> : null}
@@ -353,7 +373,7 @@ export function MediaImportWizard() {
               取消预览
             </button>
             <button disabled={isLoading} onClick={() => void publishImport()} type="button">
-              发布媒体
+              {preview.create_annotation_round ? "发布媒体并创建 Task" : "发布媒体"}
             </button>
           </div>
         </section>
@@ -368,12 +388,20 @@ export function MediaImportWizard() {
           <ul>
             {publication.media_variants.map((variant) => (
               <li key={variant.media_variant_id}>
-                {variant.role} MediaVariant ID: {variant.media_variant_id}
+                {variant.created ? "已创建" : "已复用"} {variant.role} MediaVariant ID:{" "}
+                {variant.media_variant_id}
               </li>
             ))}
           </ul>
-          {publication.annotation_round_request ? (
-            <p>已记录“请求新轮次”意图；尚未创建 Task，后续由 Task 服务处理。</p>
+          {publication.annotation_round ? (
+            <div>
+              <p>已创建 Manual Task。Task ID: {publication.annotation_round.task_id}</p>
+              {publication.annotation_round.previous_task_id ? (
+                <p>上一轮 Task ID: {publication.annotation_round.previous_task_id}</p>
+              ) : (
+                <p>这是该 Asset 的首轮 Task，无上一轮。</p>
+              )}
+            </div>
           ) : null}
         </section>
       ) : null}

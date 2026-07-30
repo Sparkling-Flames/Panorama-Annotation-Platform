@@ -189,6 +189,7 @@ class MediaImportPreview(models.Model):
         related_name="+",
     )
     publication_created_asset = models.BooleanField(blank=True, null=True)
+    publication_created_media_variant_ids = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

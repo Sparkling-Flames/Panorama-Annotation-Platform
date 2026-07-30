@@ -597,8 +597,10 @@
               "test_ids": [
                 "PAP-ANN-SC-003"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_annotation_state.py"
+              ]
             },
             {
               "title": "Undo 后恢复角点对",
@@ -627,8 +629,10 @@
               "test_ids": [
                 "PAP-ANN-SC-006"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_annotation_state.py"
+              ]
             }
           ]
         },
@@ -1023,10 +1027,8 @@
               "test_ids": [
                 "PAP-IAM-SC-010"
               ],
-              "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/identity/test_account_access.py"
-              ]
+              "coverage_status": "planned",
+              "test_files": []
             }
           ]
         },
@@ -1093,16 +1095,24 @@
               "test_ids": [
                 "PAP-MID-SC-003"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_ingestion.py",
+                "backend/tests/test_media_import_api.py",
+                "e2e/tests/media-import.spec.ts"
+              ]
             },
             {
               "title": "导入 skybox 面集合",
               "test_ids": [
                 "PAP-MID-SC-004"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_ingestion.py",
+                "backend/tests/test_media_import_api.py",
+                "frontend/src/media/MediaImportWizard.test.tsx"
+              ]
             }
           ]
         },
@@ -1128,8 +1138,12 @@
               "test_ids": [
                 "PAP-MID-SC-006"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_import_api.py",
+                "backend/tests/test_task_lifecycle.py",
+                "e2e/tests/media-import.spec.ts"
+              ]
             },
             {
               "title": "发布前预览发现配对错误",
@@ -1205,8 +1219,11 @@
               "test_ids": [
                 "PAP-MID-SC-013"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_ingestion.py",
+                "backend/tests/test_media_import_api.py"
+              ]
             }
           ]
         },
@@ -1677,8 +1694,10 @@
               "test_ids": [
                 "PAP-TBA-SC-003"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_task_lifecycle.py"
+              ]
             },
             {
               "title": "取消已发布任务",
@@ -1699,8 +1718,10 @@
               "test_ids": [
                 "PAP-TBA-SC-005"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_task_lifecycle.py"
+              ]
             }
           ]
         },

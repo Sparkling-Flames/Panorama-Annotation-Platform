@@ -35,7 +35,6 @@ function jsonResponse(body: object, status = 200): Response {
 
 function previewPayload(id = "preview-001", createAnnotationRound = false) {
   return {
-    annotation_round_request: null,
     asset_source_key: "panoramas/warehouse-001",
     asset_will_be_reused: false,
     create_annotation_round: createAnnotationRound,
@@ -162,7 +161,10 @@ describe("MediaImportWizard", () => {
     fireEvent.click(screen.getByLabelText("请求新轮次"));
     fireEvent.click(screen.getByRole("button", { name: "预览配对" }));
     await screen.findByRole("region", { name: "媒体配对预览" });
-    const publishButton = screen.getByRole("button", { name: "发布媒体" });
+    expect(
+      screen.getByText("将创建 Manual Task；若该 Asset 尚无 Task，它将成为首轮。"),
+    ).toBeInTheDocument();
+    const publishButton = screen.getByRole("button", { name: "发布媒体并创建 Task" });
     fireEvent.click(publishButton);
     fireEvent.click(publishButton);
     expect(publishButton).toBeDisabled();
@@ -181,19 +183,30 @@ describe("MediaImportWizard", () => {
 
     resolvePublish?.(
       jsonResponse({
-        annotation_round_request: { asset_id: "asset-001" },
+        annotation_round: {
+          asset_id: "asset-001",
+          mode: "manual",
+          previous_task_id: null,
+          status: "published",
+          task_id: "task-001",
+        },
         asset_id: "asset-001",
         created_asset: true,
         media_variants: [
-          { media_variant_id: "variant-high-001", role: "high_resolution" },
-          { media_variant_id: "variant-compressed-001", role: "compressed" },
+          { created: true, media_variant_id: "variant-high-001", role: "high_resolution" },
+          { created: false, media_variant_id: "variant-compressed-001", role: "compressed" },
         ],
       }),
     );
     expect(await screen.findByText(/Asset ID: asset-001/)).toBeInTheDocument();
-    expect(screen.getByText(/MediaVariant ID: variant-high-001/)).toBeInTheDocument();
-    expect(screen.getByText(/MediaVariant ID: variant-compressed-001/)).toBeInTheDocument();
-    expect(screen.getByText(/已记录“请求新轮次”意图；尚未创建 Task/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/已创建 high_resolution MediaVariant ID: variant-high-001/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/已复用 compressed MediaVariant ID: variant-compressed-001/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/已创建 Manual Task。Task ID: task-001/)).toBeInTheDocument();
+    expect(screen.getByText("这是该 Asset 的首轮 Task，无上一轮。")).toBeInTheDocument();
   });
 
   it("renders stable Chinese guidance for backend integrity errors", async () => {
@@ -212,5 +225,34 @@ describe("MediaImportWizard", () => {
     expect(
       await screen.findByText("COS 对象完整性校验失败，请重新登记该版本。"),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "invalid panorama ratio",
+      "media_panorama_aspect_ratio_invalid",
+      "全景图必须是已拼接的 2:1 等距柱状图。",
+    ],
+    [
+      "PAP-MID-SC-004 skybox rejection",
+      "media_skybox_not_supported",
+      "首版不接收 skybox 面集合，请先在平台外完成拼接。",
+    ],
+  ])("renders stable Chinese guidance for %s", async (_caseName, code, message) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ candidates: [highCandidate, compressedCandidate], next_marker: null }),
+        )
+        .mockResolvedValueOnce(jsonResponse({ error: { code } }, 400)),
+    );
+    render(<MediaImportWizard />);
+
+    await browseAndSelectPair();
+    fireEvent.click(screen.getByRole("button", { name: "预览配对" }));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
   });
 });

@@ -215,7 +215,7 @@ def test_pap_iam_sc_004_password_reset_revokes_session_and_never_reveals_old_pas
     assert reset_payload["temporary_password"] not in json.dumps(audit_event.details)
 
 
-def test_pap_iam_sc_010_admin_can_revoke_or_disable_sessions_without_deleting_account() -> None:
+def test_session_control_primitive_can_revoke_or_disable_without_deleting_account() -> None:
     admin_client = authenticated_administrator()
     worker = create_worker(admin_client)
     permanent_password = "worker-active-passphrase"

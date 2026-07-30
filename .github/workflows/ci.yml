@@ -56,10 +56,15 @@ jobs:
           DJANGO_SECRET_KEY: "django-insecure-ci-postgres-only"
           PANORAMA_TEST_SQLITE: "0"
           POSTGRES_PASSWORD: postgres-test-password
-        run: >-
-          python -m pytest backend/tests/test_media_immutability_postgres.py
-          backend/tests/identity/test_audit_event_immutability_postgres.py -q
-          --ds=panorama_annotation.settings
+        run: |
+          python backend/manage.py migrate work --noinput
+          python backend/manage.py migrate work 0001 --noinput
+          python backend/manage.py migrate work --noinput
+          python -m pytest \
+            backend/tests/test_media_immutability_postgres.py \
+            backend/tests/identity/test_audit_event_immutability_postgres.py \
+            backend/tests/test_task_lifecycle.py -q \
+            --ds=panorama_annotation.settings
 
   node-quality:
     runs-on: ubuntu-latest

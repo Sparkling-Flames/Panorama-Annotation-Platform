@@ -34,10 +34,6 @@ class MediaSourceKeyConflict(ImportConflict):
     code = "media_source_key_conflict"
 
 
-class MediaVariantRoleConflict(ImportConflict):
-    code = "media_variant_role_conflict"
-
-
 class PreviewCancelled(ValidationError):
     pass
 
@@ -107,6 +103,7 @@ class ImportPublication:
     asset: Asset
     media_variants: tuple[MediaVariant, ...]
     created_asset: bool
+    created_media_variant_ids: frozenset[UUID]
     annotation_round_request: AnnotationRoundRequest | None
 
 
@@ -188,9 +185,17 @@ def publish_stored_preview(
     )
     stored_preview.published_asset = publication.asset
     stored_preview.publication_created_asset = publication.created_asset
+    stored_preview.publication_created_media_variant_ids = sorted(
+        str(media_variant_id) for media_variant_id in publication.created_media_variant_ids
+    )
     stored_preview.published_at = timezone.now()
     stored_preview.save(
-        update_fields=["publication_created_asset", "published_asset", "published_at"]
+        update_fields=[
+            "publication_created_asset",
+            "publication_created_media_variant_ids",
+            "published_asset",
+            "published_at",
+        ]
     )
     return publication
 
@@ -204,9 +209,10 @@ def publish_import(preview: ImportPreview) -> ImportPublication:
         plan = preview.plan
         asset, created_asset = Asset.objects.get_or_create(source_key=plan.asset_source_key)
         asset = Asset.objects.select_for_update().get(pk=asset.pk)
-        media_variants = tuple(
+        variant_results = tuple(
             _publish_variant(asset=asset, candidate=candidate) for candidate in plan.variants
         )
+        media_variants = tuple(media_variant for media_variant, _created in variant_results)
     except ImportConflict:
         raise
     except (IntegrityError, ValidationError) as error:
@@ -218,6 +224,9 @@ def publish_import(preview: ImportPreview) -> ImportPublication:
         asset=asset,
         media_variants=media_variants,
         created_asset=created_asset,
+        created_media_variant_ids=frozenset(
+            media_variant.media_variant_id for media_variant, created in variant_results if created
+        ),
         annotation_round_request=annotation_round_request,
     )
 
@@ -229,6 +238,16 @@ def _validate_plan(plan: MediaImportPlan) -> None:
         raise ValidationError({"create_annotation_round": "Must be a boolean."})
     if not plan.variants:
         raise ValidationError({"variants": "At least one media variant is required."})
+    if len(plan.variants) == 6 and all(
+        isinstance(candidate.width, int)
+        and isinstance(candidate.height, int)
+        and candidate.width == candidate.height
+        for candidate in plan.variants
+    ):
+        raise ValidationError(
+            "Skybox face sets are not supported; provide a stitched equirectangular panorama.",
+            code="media_skybox_not_supported",
+        )
 
     source_keys = [candidate.source_key for candidate in plan.variants]
     if len(source_keys) != len(set(source_keys)):
@@ -239,14 +258,21 @@ def _validate_plan(plan: MediaImportPlan) -> None:
             {"variants": "One high-resolution and one compressed variant are required."}
         )
 
-    reference = plan.variants[0]
     for candidate in plan.variants:
         _validate_candidate(candidate)
+
+    reference = plan.variants[0]
+    for candidate in plan.variants:
         if candidate.width * reference.height != candidate.height * reference.width:
             raise ValidationError(
-                {
-                    "variants": "Normalized identity media variants must retain proportional dimensions."
-                }
+                "Normalized identity media variants must retain proportional dimensions.",
+                code="media_variant_mapping_incompatible",
+            )
+    for candidate in plan.variants:
+        if candidate.width != candidate.height * 2:
+            raise ValidationError(
+                "A stitched equirectangular panorama must use a 2:1 aspect ratio.",
+                code="media_panorama_aspect_ratio_invalid",
             )
 
 
@@ -272,12 +298,13 @@ def _validate_candidate(candidate: MediaVariantCandidate) -> None:
     if not isinstance(candidate.height, int) or candidate.height <= 0:
         raise ValidationError({"height": "A positive height is required."})
     if candidate.format not in MediaVariant.Format.values:
-        raise ValidationError({"format": "Unsupported media format."})
+        raise ValidationError("Unsupported media format.", code="media_format_unsupported")
     if candidate.role not in MediaVariant.Role.values:
         raise ValidationError({"role": "Unsupported media role."})
     if candidate.coordinate_mapping != MediaVariant.CoordinateMapping.NORMALIZED_IDENTITY:
         raise ValidationError(
-            {"coordinate_mapping": "Only normalized identity mapping is supported."}
+            "Only normalized identity mapping is supported.",
+            code="media_variant_mapping_incompatible",
         )
 
 
@@ -347,18 +374,16 @@ def _publication_from_stored_preview(
         asset=stored_preview.published_asset,
         media_variants=media_variants,
         created_asset=stored_preview.publication_created_asset,
+        created_media_variant_ids=frozenset(
+            UUID(value) for value in stored_preview.publication_created_media_variant_ids
+        ),
         annotation_round_request=annotation_round_request,
     )
 
 
-def _publish_variant(*, asset: Asset, candidate: MediaVariantCandidate) -> MediaVariant:
-    if (
-        MediaVariant.objects.filter(asset=asset, role=candidate.role)
-        .exclude(source_key=candidate.source_key)
-        .exists()
-    ):
-        raise MediaVariantRoleConflict("The asset already has a different variant for this role.")
-
+def _publish_variant(
+    *, asset: Asset, candidate: MediaVariantCandidate
+) -> tuple[MediaVariant, bool]:
     existing = MediaVariant.objects.filter(source_key=candidate.source_key).first()
     if existing is None:
         media_variant = MediaVariant(
@@ -376,7 +401,7 @@ def _publish_variant(*, asset: Asset, candidate: MediaVariantCandidate) -> Media
         )
         media_variant.save()
         media_variant.publish()
-        return media_variant
+        return media_variant, True
 
     expected_values = {
         "asset_id": asset.asset_id,
@@ -396,4 +421,4 @@ def _publish_variant(*, asset: Asset, candidate: MediaVariantCandidate) -> Media
         )
     if existing.published_at is None:
         existing.publish()
-    return existing
+    return existing, False

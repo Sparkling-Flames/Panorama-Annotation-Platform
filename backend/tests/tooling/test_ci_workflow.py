@@ -18,6 +18,8 @@ def test_ci_runs_media_immutability_against_postgresql() -> None:
     assert "postgres:" in workflow
     assert "backend/tests/test_media_immutability_postgres.py" in workflow
     assert "backend/tests/identity/test_audit_event_immutability_postgres.py" in workflow
+    assert "backend/tests/test_task_lifecycle.py" in workflow
+    assert "python backend/manage.py migrate work 0001 --noinput" in workflow
     assert 'DJANGO_SECRET_KEY: "django-insecure-ci-postgres-only"' in workflow
     assert 'PANORAMA_TEST_SQLITE: "0"' in workflow
     assert "--ds=panorama_annotation.settings" in workflow

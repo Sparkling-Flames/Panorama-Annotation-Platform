@@ -8,6 +8,7 @@ from uuid import UUID
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -44,6 +45,11 @@ def catalog_with_warehouse_candidates(
     compressed_hash: str = COMPRESSED_HASH,
     high_resolution_source_key: str = HIGH_RESOLUTION_SOURCE_KEY,
     compressed_source_key: str = COMPRESSED_SOURCE_KEY,
+    high_resolution_width: int = 4096,
+    high_resolution_height: int = 2048,
+    high_resolution_format: str = "png",
+    compressed_width: int = 2048,
+    compressed_height: int = 1024,
 ) -> Any:
     module = media_catalog()
     candidates = (
@@ -53,9 +59,9 @@ def catalog_with_warehouse_candidates(
             content_sha256=high_resolution_hash,
             content_length=8_388_608,
             crc64ecma="12345678901234567890",
-            width=4096,
-            height=2048,
-            format="png",
+            width=high_resolution_width,
+            height=high_resolution_height,
+            format=high_resolution_format,
             preview_url="https://cos.example.test/preview/high.png?signature=redacted",
         ),
         module.MediaCatalogCandidate(
@@ -64,8 +70,8 @@ def catalog_with_warehouse_candidates(
             content_sha256=compressed_hash,
             content_length=1_048_576,
             crc64ecma="1234567890",
-            width=2048,
-            height=1024,
+            width=compressed_width,
+            height=compressed_height,
             format="jpeg",
             preview_url="https://cos.example.test/preview/compressed.jpg?signature=redacted",
         ),
@@ -116,7 +122,7 @@ def publication_request(preview: dict[str, object]) -> bytes:
     ).encode("utf-8")
 
 
-def test_pap_mid_sc_005_admin_browses_cos_candidates_previews_and_idempotently_publishes(
+def test_pap_mid_sc_005_sc_006_admin_imports_media_and_creates_explicit_rounds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     views = media_views()
@@ -173,7 +179,6 @@ def test_pap_mid_sc_005_admin_browses_cos_candidates_previews_and_idempotently_p
         for key, value in preview_payload.items()
         if key not in {"expires_at", "plan_sha256", "preview_id"}
     } == {
-        "annotation_round_request": None,
         "asset_source_key": ASSET_SOURCE_KEY,
         "asset_will_be_reused": False,
         "create_annotation_round": True,
@@ -218,10 +223,17 @@ def test_pap_mid_sc_005_admin_browses_cos_candidates_previews_and_idempotently_p
     assert first_publish_response.status_code == 201
     first_payload = first_publish_response.json()
     assert first_payload["created_asset"] is True
-    assert first_payload["annotation_round_request"] == {
+    first_round = first_payload["annotation_round"]
+    assert UUID(first_round["task_id"]).version == 4
+    assert first_round == {
         "asset_id": first_payload["asset_id"],
+        "mode": "manual",
+        "previous_task_id": None,
+        "status": "published",
+        "task_id": first_round["task_id"],
     }
     assert len(first_payload["media_variants"]) == 2
+    assert {variant["created"] for variant in first_payload["media_variants"]} == {True}
     assert {
         (variant["object_version"], variant["content_length"], variant["content_crc64ecma"])
         for variant in first_payload["media_variants"]
@@ -249,10 +261,66 @@ def test_pap_mid_sc_005_admin_browses_cos_candidates_previews_and_idempotently_p
         content_type="application/json",
     )
     assert second_publish_response.status_code == 200
-    assert second_publish_response.json()["created_asset"] is False
-    assert second_publish_response.json()["asset_id"] == first_payload["asset_id"]
+    second_payload = second_publish_response.json()
+    assert second_payload["created_asset"] is False
+    assert {variant["created"] for variant in second_payload["media_variants"]} == {False}
+    assert second_payload["asset_id"] == first_payload["asset_id"]
+    assert UUID(second_payload["annotation_round"]["task_id"]).version == 4
+    assert second_payload["annotation_round"]["task_id"] != first_round["task_id"]
+    assert second_payload["annotation_round"]["previous_task_id"] == first_round["task_id"]
     assert models.Asset.objects.count() == 1
     assert models.MediaVariant.objects.count() == 2
+    work_models = importlib.import_module("work.models")
+    assert work_models.Task.objects.filter(asset_id=first_payload["asset_id"]).count() == 2
+
+
+def test_media_and_round_publication_roll_back_together_when_task_creation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    views = media_views()
+    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
+    create_round = views.create_manual_annotation_round
+
+    def reject_round_creation(**_kwargs: object) -> None:
+        raise ValidationError("Task creation failed.", code="task_creation_failed")
+
+    monkeypatch.setattr(views, "create_manual_annotation_round", reject_round_creation)
+    client = create_admin_client()
+    preview = client.post(
+        "/api/admin/media/imports/preview",
+        data=request_payload(create_annotation_round=True),
+        content_type="application/json",
+    ).json()
+
+    response = client.post(
+        "/api/admin/media/imports/publish",
+        data=publication_request(preview),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"error": {"code": "task_creation_failed"}}
+    models = importlib.import_module("media.models")
+    stored_preview = models.MediaImportPreview.objects.get(preview_id=preview["preview_id"])
+    assert stored_preview.published_at is None
+    assert stored_preview.published_asset_id is None
+    assert models.Asset.objects.count() == 0
+    assert models.MediaVariant.objects.count() == 0
+
+    monkeypatch.setattr(views, "create_manual_annotation_round", create_round)
+    retry = client.post(
+        "/api/admin/media/imports/publish",
+        data=publication_request(preview),
+        content_type="application/json",
+    )
+
+    assert retry.status_code == 201
+    assert retry.json()["annotation_round"]["status"] == "published"
+    stored_preview.refresh_from_db()
+    assert stored_preview.published_at is not None
+    assert models.Asset.objects.count() == 1
+    assert models.MediaVariant.objects.count() == 2
+    assert importlib.import_module("work.models").Task.objects.count() == 1
 
 
 def test_media_publish_accepts_only_a_frozen_preview_contract(
@@ -278,6 +346,62 @@ def test_media_publish_accepts_only_a_frozen_preview_contract(
     assert preview["preview_id"]
     assert response.status_code == 400
     assert response.json() == {"error": {"code": "invalid_media_import_publication"}}
+
+
+@pytest.mark.parametrize(
+    ("catalog_options", "error_code"),
+    [
+        (
+            {
+                "high_resolution_width": 4000,
+                "high_resolution_height": 1500,
+                "compressed_width": 2000,
+                "compressed_height": 750,
+            },
+            "media_panorama_aspect_ratio_invalid",
+        ),
+        ({"high_resolution_format": "webp"}, "media_format_unsupported"),
+        ({"compressed_width": 3072}, "media_variant_mapping_incompatible"),
+    ],
+)
+def test_media_import_api_returns_stable_validation_codes(
+    monkeypatch: pytest.MonkeyPatch,
+    catalog_options: dict[str, Any],
+    error_code: str,
+) -> None:
+    views = media_views()
+    monkeypatch.setattr(
+        views,
+        "get_cos_catalog",
+        lambda: catalog_with_warehouse_candidates(**catalog_options),
+    )
+    client = create_admin_client()
+
+    response = client.post(
+        "/api/admin/media/imports/preview",
+        data=request_payload(),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"error": {"code": error_code}}
+
+
+def test_pap_mid_sc_004_media_import_api_rejects_a_skybox_face_set() -> None:
+    client = create_admin_client()
+    payload = json.loads(request_payload())
+    payload["skybox_face_source_keys"] = [
+        f"incoming/warehouse-001/face-{index}.png" for index in range(6)
+    ]
+
+    response = client.post(
+        "/api/admin/media/imports/preview",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"error": {"code": "media_skybox_not_supported"}}
 
 
 def test_pap_mid_sc_002_media_publish_rejects_cos_metadata_changed_after_preview(
@@ -439,12 +563,6 @@ def test_pap_mid_sc_007_cancelled_media_preview_cannot_publish_or_create_an_asse
     [
         (ASSET_SOURCE_KEY, HIGH_RESOLUTION_SOURCE_KEY, "c" * 64, "media_source_key_conflict"),
         (
-            ASSET_SOURCE_KEY,
-            "incoming/warehouse-001/high-v2.png",
-            "c" * 64,
-            "media_variant_role_conflict",
-        ),
-        (
             "panoramas/warehouse-002",
             HIGH_RESOLUTION_SOURCE_KEY,
             HIGH_RESOLUTION_HASH,
@@ -500,6 +618,49 @@ def test_media_import_conflicts_have_stable_codes_and_leave_no_partial_data(
     models = importlib.import_module("media.models")
     assert models.Asset.objects.count() == 1
     assert models.MediaVariant.objects.count() == 2
+
+
+def test_media_import_api_appends_a_new_same_role_variant_to_an_existing_asset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    views = media_views()
+    catalog = catalog_with_warehouse_candidates()
+    monkeypatch.setattr(views, "get_cos_catalog", lambda: catalog)
+    client = create_admin_client()
+    first_preview = client.post(
+        "/api/admin/media/imports/preview",
+        data=request_payload(),
+        content_type="application/json",
+    ).json()
+    first_publication = client.post(
+        "/api/admin/media/imports/publish",
+        data=publication_request(first_preview),
+        content_type="application/json",
+    )
+    assert first_publication.status_code == 201
+
+    replacement_source_key = "incoming/warehouse-001/high-v2.png"
+    catalog = catalog_with_warehouse_candidates(
+        high_resolution_hash="c" * 64,
+        high_resolution_source_key=replacement_source_key,
+    )
+    replacement_preview = client.post(
+        "/api/admin/media/imports/preview",
+        data=request_payload(high_resolution_source_key=replacement_source_key),
+        content_type="application/json",
+    ).json()
+    replacement_publication = client.post(
+        "/api/admin/media/imports/publish",
+        data=publication_request(replacement_preview),
+        content_type="application/json",
+    )
+
+    assert replacement_publication.status_code == 200
+    assert replacement_publication.json()["created_asset"] is False
+    assert replacement_publication.json()["asset_id"] == first_publication.json()["asset_id"]
+    models = importlib.import_module("media.models")
+    assert models.MediaVariant.objects.filter(role="high_resolution").count() == 2
+    assert models.MediaVariant.objects.count() == 3
 
 
 def test_media_import_api_rejects_non_admin_requests() -> None:

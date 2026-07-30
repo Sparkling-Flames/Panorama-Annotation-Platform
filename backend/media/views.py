@@ -6,9 +6,12 @@ from uuid import UUID
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from identity.models import User
+from work.models import Task
+from work.services import create_manual_annotation_round
 
 from .catalog import (
     CosCatalogUnavailable,
@@ -128,14 +131,22 @@ def import_publish_view(request: HttpRequest) -> JsonResponse:
             role=candidate.role,
         )
 
+    annotation_round: Task | None = None
     try:
         preview_id, expected_plan_sha256 = _publication_request(request)
-        publication = publish_stored_preview(
-            preview_id=preview_id,
-            actor=cast(User, request.user),
-            expected_plan_sha256=expected_plan_sha256,
-            candidate_loader=load_current_candidate,
-        )
+        with transaction.atomic():
+            publication = publish_stored_preview(
+                preview_id=preview_id,
+                actor=cast(User, request.user),
+                expected_plan_sha256=expected_plan_sha256,
+                candidate_loader=load_current_candidate,
+            )
+            if publication.annotation_round_request is not None:
+                annotation_round = create_manual_annotation_round(
+                    source_preview_id=preview_id,
+                    asset=publication.asset,
+                    media_variants=publication.media_variants,
+                )
     except _ImportRequestError as error:
         return error_response(error.code, status=error.status)
     except StoredPreviewError as error:
@@ -150,11 +161,23 @@ def import_publish_view(request: HttpRequest) -> JsonResponse:
         return error_response("media_candidate_integrity_conflict", status=409)
     except ImportConflict as error:
         return error_response(type(error).code, status=409)
+    except ValidationError as error:
+        return error_response(error.code or "task_creation_failed", status=409)
 
     response_payload: dict[str, object] = {
-        "annotation_round_request": (
-            {"asset_id": str(publication.annotation_round_request.asset_id)}
-            if publication.annotation_round_request is not None
+        "annotation_round": (
+            {
+                "asset_id": str(annotation_round.asset_id),
+                "mode": annotation_round.mode,
+                "previous_task_id": (
+                    str(annotation_round.previous_round_task_id)
+                    if annotation_round.previous_round_task_id is not None
+                    else None
+                ),
+                "status": annotation_round.status,
+                "task_id": str(annotation_round.task_id),
+            }
+            if annotation_round is not None
             else None
         ),
         "asset_id": str(publication.asset.asset_id),
@@ -164,6 +187,9 @@ def import_publish_view(request: HttpRequest) -> JsonResponse:
                 "content_sha256": media_variant.content_sha256,
                 "content_crc64ecma": media_variant.content_crc64ecma,
                 "content_length": media_variant.content_length,
+                "created": (
+                    media_variant.media_variant_id in publication.created_media_variant_ids
+                ),
                 "format": media_variant.format,
                 "height": media_variant.height,
                 "media_variant_id": str(media_variant.media_variant_id),
@@ -227,7 +253,11 @@ def _preview_from_request(
     request: HttpRequest,
 ) -> tuple[ImportPreview, tuple[MediaCatalogCandidate, MediaCatalogCandidate]]:
     payload = request_json(request)
-    if payload is None or set(payload) != IMPORT_REQUEST_FIELDS:
+    if payload is None:
+        raise _ImportRequestError("invalid_media_import", 400)
+    if "skybox_face_source_keys" in payload:
+        raise _ImportRequestError("media_skybox_not_supported", 400)
+    if set(payload) != IMPORT_REQUEST_FIELDS:
         raise _ImportRequestError("invalid_media_import", 400)
 
     asset_source_key = payload.get("asset_source_key")
@@ -264,7 +294,10 @@ def _preview_from_request(
     except MediaCandidateIntegrityConflict as error:
         raise _ImportRequestError("media_candidate_integrity_conflict", 409) from error
     except ValidationError as error:
-        raise _ImportRequestError("invalid_media_import", 400) from error
+        raise _ImportRequestError(
+            getattr(error, "code", None) or "invalid_media_import",
+            400,
+        ) from error
 
 
 def _variant_candidate(candidate: MediaCatalogCandidate, *, role: str) -> MediaVariantCandidate:
@@ -309,7 +342,6 @@ def _preview_payload(
 ) -> dict[str, object]:
     high_resolution, compressed = candidates
     return {
-        "annotation_round_request": None,
         "asset_source_key": preview.plan.asset_source_key,
         "asset_will_be_reused": preview.asset_will_be_reused,
         "create_annotation_round": preview.plan.create_annotation_round,
