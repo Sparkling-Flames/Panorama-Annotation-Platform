@@ -2,7 +2,7 @@
 
 这是一个与 HOHONET 论文实验主线隔离的轻量级全景标注平台仓库。
 
-当前仅完成开发治理初始化：仓库中有 OpenSpec 与 Codex 工作流配置，但刻意没有应用代码、业务规范、待实施 change、数据库结构或部署配置。任何平台功能都应先经过 OpenSpec 规划和用户确认。
+当前正在按 TDD 实施用户已批准的首版 change：`build-panorama-annotation-platform-v1`，已完成部分 identity/media 基础、数据库迁移、API、前端与测试。change 仍处于 apply 阶段，尚未完成验收、sync 或 archive。
 
 ## 规范与协作
 

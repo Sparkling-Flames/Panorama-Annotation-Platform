@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-- 本仓库当前只完成治理和工具初始化，不实现平台业务、数据库、API、前端或部署代码。
+- 本仓库正在 TDD 实施用户已批准的 OpenSpec change `build-panorama-annotation-platform-v1`，已落地部分 identity/media 基础、数据库迁移、API、前端与测试；change 仍处于 apply 阶段，尚未完成验收、sync 或 archive。
 - 本仓库与 `D:\Work\HOHONET` 独立。除非用户通过已确认的 OpenSpec change 明确授权，不得修改 HOHONET，也不得通过复制运行时数据、子模块或软链接形成隐式耦合。
 - 默认使用简体中文沟通和编写规范；代码标识及必要技术术语可使用英文。
 

@@ -1,0 +1,25 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = ["backend/tests/fixtures/security"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["backend/manage.py", "backend/panorama_annotation", "backend/identity", "backend/media", "scripts"]
+mypy_path = ["backend"]
+plugins = ["mypy_django_plugin.main"]
+exclude = ["backend/tests/fixtures/security"]
+
+[[tool.mypy.overrides]]
+module = ["django", "django.*", "qcloud_cos", "qcloud_cos.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "panorama_annotation.test_settings"
+
+[tool.bandit]
+exclude_dirs = ["tests"]

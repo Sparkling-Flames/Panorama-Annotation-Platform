@@ -1,0 +1,31 @@
+{
+  "name": "panorama-annotation-platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "与现有 HOHONET/Label Studio 实验物理隔离的全景标注平台。",
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@fission-ai/openspec": "1.6.0",
+    "@types/node": "26.1.2",
+    "eslint": "10.8.0",
+    "globals": "17.8.0",
+    "prettier": "3.9.6",
+    "typescript-eslint": "8.65.0"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "format:check": "prettier --check frontend e2e eslint.config.mjs package.json",
+    "lint": "eslint frontend e2e",
+    "openspec:validate": "openspec validate --all --strict --json",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:frontend": "npm run test --workspace=@panorama-annotation-platform/frontend",
+    "test:e2e-runner": "node --test e2e/python-executable.test.mjs",
+    "test:e2e": "npm run test --workspace=@panorama-annotation-platform/e2e"
+  },
+  "workspaces": [
+    "frontend",
+    "e2e"
+  ]
+}

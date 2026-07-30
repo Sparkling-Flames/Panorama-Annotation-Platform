@@ -1,0 +1,1818 @@
+{
+  "schema_version": 1,
+  "change": "build-panorama-annotation-platform-v1",
+  "id_convention": "PAP-<CAPABILITY_PREFIX>-SC-<NNN>",
+  "capabilities": [
+    {
+      "capability": "activity-offline",
+      "prefix": "AOF",
+      "implementation_task_sections": [
+        "8"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-AOF-REQ-001",
+          "title": "Active time 表示真实标注活动",
+          "scenarios": [
+            {
+              "title": "页面保持打开但无人操作",
+              "test_ids": [
+                "PAP-AOF-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "工人切换到其他应用",
+              "test_ids": [
+                "PAP-AOF-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AOF-REQ-002",
+          "title": "服务器从事件区间推导时间",
+          "scenarios": [
+            {
+              "title": "重复重放事件",
+              "test_ids": [
+                "PAP-AOF-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "设备休眠后恢复",
+              "test_ids": [
+                "PAP-AOF-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AOF-REQ-003",
+          "title": "允许的活动类型明确",
+          "scenarios": [
+            {
+              "title": "工人检查 3D",
+              "test_ids": [
+                "PAP-AOF-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AOF-REQ-004",
+          "title": "时间按 Assignment 与 DraftCycle 归属",
+          "scenarios": [
+            {
+              "title": "提交后再次修订",
+              "test_ids": [
+                "PAP-AOF-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AOF-REQ-005",
+          "title": "已加载任务支持离线编辑和计时",
+          "scenarios": [
+            {
+              "title": "标注中途断网",
+              "test_ids": [
+                "PAP-AOF-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "重新联网且服务器基线未变",
+              "test_ids": [
+                "PAP-AOF-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AOF-REQ-006",
+          "title": "离线冲突不得自动覆盖",
+          "scenarios": [
+            {
+              "title": "另一设备已接管并修改草稿",
+              "test_ids": [
+                "PAP-AOF-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AOF-REQ-007",
+          "title": "Active time 不决定付款或单独判罚",
+          "scenarios": [
+            {
+              "title": "工人用时异常短",
+              "test_ids": [
+                "PAP-AOF-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "adaptive-consensus-routing",
+      "prefix": "ACR",
+      "implementation_task_sections": [
+        "10",
+        "11"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-ACR-REQ-001",
+          "title": "每次提交触发近实时评估",
+          "scenarios": [
+            {
+              "title": "分析服务暂时失败",
+              "test_ids": [
+                "PAP-ACR-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "相同分析任务重试",
+              "test_ids": [
+                "PAP-ACR-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-002",
+          "title": "共识先判断 scope 再判断 geometry",
+          "scenarios": [
+            {
+              "title": "scope 稳定为 in_scope",
+              "test_ids": [
+                "PAP-ACR-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "scope 稳定为 oos",
+              "test_ids": [
+                "PAP-ACR-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "OOS 与有效几何冲突",
+              "test_ids": [
+                "PAP-ACR-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-003",
+          "title": "动态追加并在稳定后停止",
+          "scenarios": [
+            {
+              "title": "初始三份标注已稳定",
+              "test_ids": [
+                "PAP-ACR-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "达到上限仍多峰",
+              "test_ids": [
+                "PAP-ACR-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-004",
+          "title": "Geometry 共识选择真实 medoid Revision",
+          "scenarios": [
+            {
+              "title": "唯一主簇稳定",
+              "test_ids": [
+                "PAP-ACR-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "管理员后来裁决",
+              "test_ids": [
+                "PAP-ACR-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-005",
+          "title": "每名工人只贡献一份独立证据",
+          "scenarios": [
+            {
+              "title": "工人在反馈前主动修订两次",
+              "test_ids": [
+                "PAP-ACR-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-006",
+          "title": "LOO 共识形成质量证据",
+          "scenarios": [
+            {
+              "title": "第一名工人先提交",
+              "test_ids": [
+                "PAP-ACR-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "后续追加形成稳定共识",
+              "test_ids": [
+                "PAP-ACR-SC-012"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-007",
+          "title": "画像区分证据类型和适用范围",
+          "scenarios": [
+            {
+              "title": "工人与模型高度一致但无独立参考",
+              "test_ids": [
+                "PAP-ACR-SC-013"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "新工人样本少",
+              "test_ids": [
+                "PAP-ACR-SC-014"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-008",
+          "title": "路由采用能力—难度匹配",
+          "scenarios": [
+            {
+              "title": "困难高风险任务",
+              "test_ids": [
+                "PAP-ACR-SC-015"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "稳定但能力较低的工人",
+              "test_ids": [
+                "PAP-ACR-SC-016"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-009",
+          "title": "路由保留分层探索和晋级路径",
+          "scenarios": [
+            {
+              "title": "简单任务持续稳定",
+              "test_ids": [
+                "PAP-ACR-SC-017"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "管理员关闭探索",
+              "test_ids": [
+                "PAP-ACR-SC-018"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-010",
+          "title": "首版路由模式受控",
+          "scenarios": [
+            {
+              "title": "首版请求 adaptive_auto",
+              "test_ids": [
+                "PAP-ACR-SC-019"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-011",
+          "title": "批次内规则固定而画像滚动",
+          "scenarios": [
+            {
+              "title": "提交后画像改善",
+              "test_ids": [
+                "PAP-ACR-SC-020"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-012",
+          "title": "路由决策可重放",
+          "scenarios": [
+            {
+              "title": "审计一次辅助分配",
+              "test_ids": [
+                "PAP-ACR-SC-021"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "admin-audit-export",
+      "prefix": "AAE",
+      "implementation_task_sections": [
+        "12"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-AAE-REQ-001",
+          "title": "管理员查看轻量运营状态",
+          "scenarios": [
+            {
+              "title": "管理员打开运营页",
+              "test_ids": [
+                "PAP-AAE-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-002",
+          "title": "按钮生成不可变 provisional MetricSnapshot",
+          "scenarios": [
+            {
+              "title": "首次计算当前情况",
+              "test_ids": [
+                "PAP-AAE-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "新提交到达后查看旧 Snapshot",
+              "test_ids": [
+                "PAP-AAE-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "相同输入重复计算",
+              "test_ids": [
+                "PAP-AAE-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-003",
+          "title": "复核队列由异常和抽检驱动",
+          "scenarios": [
+            {
+              "title": "达到共识上限仍冲突",
+              "test_ids": [
+                "PAP-AAE-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "稳定 OOS 未命中抽检",
+              "test_ids": [
+                "PAP-AAE-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-004",
+          "title": "管理员指导与研究证据分离",
+          "scenarios": [
+            {
+              "title": "管理员通过微信指导",
+              "test_ids": [
+                "PAP-AAE-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-005",
+          "title": "Audit 只消费冻结输入且不可修改标注",
+          "scenarios": [
+            {
+              "title": "审计发现严重问题",
+              "test_ids": [
+                "PAP-AAE-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-006",
+          "title": "批次导出保持完整身份和版本",
+          "scenarios": [
+            {
+              "title": "导出开放批次",
+              "test_ids": [
+                "PAP-AAE-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "导出平台身份",
+              "test_ids": [
+                "PAP-AAE-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-007",
+          "title": "平台不处理工资与支付",
+          "scenarios": [
+            {
+              "title": "管理员查看工人统计",
+              "test_ids": [
+                "PAP-AAE-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-008",
+          "title": "审计日志覆盖高影响操作",
+          "scenarios": [
+            {
+              "title": "管理员批量撤销 Assignment",
+              "test_ids": [
+                "PAP-AAE-SC-012"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-AAE-REQ-009",
+          "title": "备份与恢复采用小团队基线",
+          "scenarios": [
+            {
+              "title": "平台升级前",
+              "test_ids": [
+                "PAP-AAE-SC-013"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "恢复演练",
+              "test_ids": [
+                "PAP-AAE-SC-014"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "annotation-contract",
+      "prefix": "ANN",
+      "implementation_task_sections": [
+        "5"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-ANN-REQ-001",
+          "title": "规范状态只包含 2D 几何和元标签",
+          "scenarios": [
+            {
+              "title": "工人在 3D 视图操作",
+              "test_ids": [
+                "PAP-ANN-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "导出墙面",
+              "test_ids": [
+                "PAP-ANN-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-002",
+          "title": "顶底角点分别保存",
+          "scenarios": [
+            {
+              "title": "顶底点横坐标不同",
+              "test_ids": [
+                "PAP-ANN-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "Undo 后恢复角点对",
+              "test_ids": [
+                "PAP-ANN-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-003",
+          "title": "规范化坐标与 seam 合同",
+          "scenarios": [
+            {
+              "title": "切换媒体分辨率",
+              "test_ids": [
+                "PAP-ANN-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "角点跨越全景 seam",
+              "test_ids": [
+                "PAP-ANN-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-004",
+          "title": "角点顺序可在 2D 中显式维护",
+          "scenarios": [
+            {
+              "title": "工人修正错误顺序",
+              "test_ids": [
+                "PAP-ANN-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-005",
+          "title": "元标签采用固定版本化 schema",
+          "scenarios": [
+            {
+              "title": "仅修改展示文案",
+              "test_ids": [
+                "PAP-ANN-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "新增元标签选项",
+              "test_ids": [
+                "PAP-ANN-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "Manual Task 请求 model_issue",
+              "test_ids": [
+                "PAP-ANN-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-006",
+          "title": "Scope 仅区分 in_scope 与 oos",
+          "scenarios": [
+            {
+              "title": "工人无法精确归类 OOS",
+              "test_ids": [
+                "PAP-ANN-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-007",
+          "title": "OOS 必须包含认真尝试证据",
+          "scenarios": [
+            {
+              "title": "best_effort_complete OOS",
+              "test_ids": [
+                "PAP-ANN-SC-012"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "partial OOS",
+              "test_ids": [
+                "PAP-ANN-SC-013"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "not_drawable OOS",
+              "test_ids": [
+                "PAP-ANN-SC-014"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "OOS 原因缺失",
+              "test_ids": [
+                "PAP-ANN-SC-015"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-008",
+          "title": "服务器验证 canonical 数据",
+          "scenarios": [
+            {
+              "title": "客户端绕过字段校验",
+              "test_ids": [
+                "PAP-ANN-SC-016"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "draft-revision-review",
+      "prefix": "DRR",
+      "implementation_task_sections": [
+        "6"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-DRR-REQ-001",
+          "title": "每个编辑周期只有一个可变 CurrentDraft",
+          "scenarios": [
+            {
+              "title": "正常自动保存",
+              "test_ids": [
+                "PAP-DRR-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "旧客户端覆盖新草稿",
+              "test_ids": [
+                "PAP-DRR-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-002",
+          "title": "首次提交冻结 Revision",
+          "scenarios": [
+            {
+              "title": "首次提交成功",
+              "test_ids": [
+                "PAP-DRR-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-003",
+          "title": "提交请求幂等",
+          "scenarios": [
+            {
+              "title": "提交响应丢失后重试",
+              "test_ids": [
+                "PAP-DRR-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-004",
+          "title": "批次开放期间允许新增修订",
+          "scenarios": [
+            {
+              "title": "工人主动修正先前标注",
+              "test_ids": [
+                "PAP-DRR-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-005",
+          "title": "Undo/Redo 是客户端草稿能力",
+          "scenarios": [
+            {
+              "title": "换设备继续编辑",
+              "test_ids": [
+                "PAP-DRR-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-006",
+          "title": "复核绑定具体 Revision",
+          "scenarios": [
+            {
+              "title": "管理员裁决几何",
+              "test_ids": [
+                "PAP-DRR-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "工人提交新 Revision",
+              "test_ids": [
+                "PAP-DRR-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-007",
+          "title": "OOS 误判支持选择性返工",
+          "scenarios": [
+            {
+              "title": "工人完成 OOS 返工",
+              "test_ids": [
+                "PAP-DRR-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "返工逾期",
+              "test_ids": [
+                "PAP-DRR-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-008",
+          "title": "反馈暴露与独立证据分离",
+          "scenarios": [
+            {
+              "title": "返工结果与初始质量统计",
+              "test_ids": [
+                "PAP-DRR-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-DRR-REQ-009",
+          "title": "只永久记录必要过程证据",
+          "scenarios": [
+            {
+              "title": "工人连续拖动角点",
+              "test_ids": [
+                "PAP-DRR-SC-012"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "identity-access",
+      "prefix": "IAM",
+      "implementation_task_sections": [
+        "2"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-IAM-REQ-001",
+          "title": "管理员受控创建账号",
+          "scenarios": [
+            {
+              "title": "管理员创建工人账号",
+              "test_ids": [
+                "PAP-IAM-SC-001"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_account_access.py"
+              ]
+            },
+            {
+              "title": "未授权注册被拒绝",
+              "test_ids": [
+                "PAP-IAM-SC-002"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_account_access.py"
+              ]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-IAM-REQ-002",
+          "title": "密码不可回读且支持安全重置",
+          "scenarios": [
+            {
+              "title": "首次登录强制改密",
+              "test_ids": [
+                "PAP-IAM-SC-003"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_account_access.py"
+              ]
+            },
+            {
+              "title": "管理员重置密码",
+              "test_ids": [
+                "PAP-IAM-SC-004"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_account_access.py"
+              ]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-IAM-REQ-003",
+          "title": "服务端强制资源隔离",
+          "scenarios": [
+            {
+              "title": "工人访问他人任务",
+              "test_ids": [
+                "PAP-IAM-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "管理员执行全局复核",
+              "test_ids": [
+                "PAP-IAM-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-IAM-REQ-004",
+          "title": "工人仅有一个活动工作区",
+          "scenarios": [
+            {
+              "title": "新设备接管",
+              "test_ids": [
+                "PAP-IAM-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "同一浏览器打开第二个标注页",
+              "test_ids": [
+                "PAP-IAM-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "活动租约正常过期",
+              "test_ids": [
+                "PAP-IAM-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-IAM-REQ-005",
+          "title": "会话与客户端存储最小化",
+          "scenarios": [
+            {
+              "title": "已撤销会话重试请求",
+              "test_ids": [
+                "PAP-IAM-SC-010"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_account_access.py"
+              ]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-IAM-REQ-006",
+          "title": "工人画像仅限管理用途",
+          "scenarios": [
+            {
+              "title": "工人查看工作状态",
+              "test_ids": [
+                "PAP-IAM-SC-011"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_session_security.py",
+                "e2e/tests/identity-security.spec.ts"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "media-ingestion-delivery",
+      "prefix": "MID",
+      "implementation_task_sections": [
+        "3"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-MID-REQ-001",
+          "title": "Asset 与媒体变体不可变绑定",
+          "scenarios": [
+            {
+              "title": "导入高清图和压缩图",
+              "test_ids": [
+                "PAP-MID-SC-001"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_asset_models.py",
+                "backend/tests/test_media_import_api.py"
+              ]
+            },
+            {
+              "title": "已发布对象内容变化",
+              "test_ids": [
+                "PAP-MID-SC-002"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_import_api.py",
+                "backend/tests/test_tencent_cos_catalog.py"
+              ]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-MID-REQ-002",
+          "title": "平台只接收已拼接全景图",
+          "scenarios": [
+            {
+              "title": "导入合法等距柱状图",
+              "test_ids": [
+                "PAP-MID-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "导入 skybox 面集合",
+              "test_ids": [
+                "PAP-MID-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-MID-REQ-003",
+          "title": "可视化且幂等的管理员导入",
+          "scenarios": [
+            {
+              "title": "重复导入同一对象",
+              "test_ids": [
+                "PAP-MID-SC-005"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_ingestion.py",
+                "backend/tests/test_media_import_api.py",
+                "e2e/tests/media-import.spec.ts",
+                "frontend/src/media/MediaImportWizard.test.tsx"
+              ]
+            },
+            {
+              "title": "显式创建新轮次",
+              "test_ids": [
+                "PAP-MID-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "发布前预览发现配对错误",
+              "test_ids": [
+                "PAP-MID-SC-007"
+              ],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_media_import_api.py",
+                "frontend/src/media/MediaImportWizard.test.tsx"
+              ]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-MID-REQ-004",
+          "title": "私有 COS 直连交付",
+          "scenarios": [
+            {
+              "title": "工人加载获授权媒体",
+              "test_ids": [
+                "PAP-MID-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "签名地址过期",
+              "test_ids": [
+                "PAP-MID-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-MID-REQ-005",
+          "title": "压缩图优先与高清切换",
+          "scenarios": [
+            {
+              "title": "高清图加载较慢",
+              "test_ids": [
+                "PAP-MID-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "一个变体不可用",
+              "test_ids": [
+                "PAP-MID-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "所有变体不可用",
+              "test_ids": [
+                "PAP-MID-SC-012"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-MID-REQ-006",
+          "title": "媒体变体保持坐标语义",
+          "scenarios": [
+            {
+              "title": "非等比变形图片候选",
+              "test_ids": [
+                "PAP-MID-SC-013"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-MID-REQ-007",
+          "title": "首版禁止工人上传任务媒体",
+          "scenarios": [
+            {
+              "title": "工人尝试上传替代图片",
+              "test_ids": [
+                "PAP-MID-SC-014"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "platform-boundaries",
+      "prefix": "PBD",
+      "implementation_task_sections": [
+        "13"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-PBD-REQ-001",
+          "title": "首版支持桌面 Chrome 与 Edge",
+          "scenarios": [
+            {
+              "title": "受支持浏览器通过预检",
+              "test_ids": [
+                "PAP-PBD-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "WebGL 不可用",
+              "test_ids": [
+                "PAP-PBD-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-002",
+          "title": "中英文文案和 UTC 时间",
+          "scenarios": [
+            {
+              "title": "世界各地工人提交",
+              "test_ids": [
+                "PAP-PBD-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-003",
+          "title": "数据收集告知版本化",
+          "scenarios": [
+            {
+              "title": "首次进入工作区",
+              "test_ids": [
+                "PAP-PBD-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-004",
+          "title": "禁止超范围监控",
+          "scenarios": [
+            {
+              "title": "质量画像生成",
+              "test_ids": [
+                "PAP-PBD-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-005",
+          "title": "关键交互与引擎版本可追溯",
+          "scenarios": [
+            {
+              "title": "Active-time 规则改变",
+              "test_ids": [
+                "PAP-PBD-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-006",
+          "title": "新平台与 HOHONET 运行时隔离",
+          "scenarios": [
+            {
+              "title": "新平台部署",
+              "test_ids": [
+                "PAP-PBD-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-007",
+          "title": "平台 canonical schema 不兼容优先",
+          "scenarios": [
+            {
+              "title": "下游需要旧 LS 数据",
+              "test_ids": [
+                "PAP-PBD-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-008",
+          "title": "未来适配器不阻塞首版",
+          "scenarios": [
+            {
+              "title": "请求未来桌面客户端",
+              "test_ids": [
+                "PAP-PBD-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "请求本地媒体包",
+              "test_ids": [
+                "PAP-PBD-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PBD-REQ-009",
+          "title": "全球访问首版以实测驱动优化",
+          "scenarios": [
+            {
+              "title": "某地区媒体持续缓慢",
+              "test_ids": [
+                "PAP-PBD-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "prediction-assist",
+      "prefix": "PAS",
+      "implementation_task_sections": [
+        "9"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-PAS-REQ-001",
+          "title": "Manual 模式在网络层不暴露 Prediction",
+          "scenarios": [
+            {
+              "title": "工人打开 Manual Task",
+              "test_ids": [
+                "PAP-PAS-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "同一 Asset 同时存在 Semi Task",
+              "test_ids": [
+                "PAP-PAS-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-002",
+          "title": "Semi 只加载冻结 PredictionArtifact",
+          "scenarios": [
+            {
+              "title": "发布合法 Semi Task",
+              "test_ids": [
+                "PAP-PAS-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "更换 checkpoint 结果",
+              "test_ids": [
+                "PAP-PAS-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-003",
+          "title": "Prediction 由管理员导入本地推理输出",
+          "scenarios": [
+            {
+              "title": "本地预测导入成功",
+              "test_ids": [
+                "PAP-PAS-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "平台运行时缺少模型",
+              "test_ids": [
+                "PAP-PAS-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-004",
+          "title": "Prediction 错误不得静默降级",
+          "scenarios": [
+            {
+              "title": "Artifact 哈希不匹配",
+              "test_ids": [
+                "PAP-PAS-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-005",
+          "title": "Assist 候选绑定输入状态",
+          "scenarios": [
+            {
+              "title": "候选返回前状态已改变",
+              "test_ids": [
+                "PAP-PAS-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-006",
+          "title": "首版不向普通工人开放 A-line",
+          "scenarios": [
+            {
+              "title": "普通工人请求 A-line 候选",
+              "test_ids": [
+                "PAP-PAS-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-007",
+          "title": "Assist 操作保留不可变证据",
+          "scenarios": [
+            {
+              "title": "工人撤销已应用候选",
+              "test_ids": [
+                "PAP-PAS-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PAS-REQ-008",
+          "title": "平台禁止任意分析脚本执行",
+          "scenarios": [
+            {
+              "title": "管理员提交未注册脚本",
+              "test_ids": [
+                "PAP-PAS-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "preview-validation",
+      "prefix": "PRV",
+      "implementation_task_sections": [
+        "7"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-PRV-REQ-001",
+          "title": "3D 预览在工人设备本地派生",
+          "scenarios": [
+            {
+              "title": "本地生成预览",
+              "test_ids": [
+                "PAP-PRV-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PRV-REQ-002",
+          "title": "只在动作完成后刷新 3D",
+          "scenarios": [
+            {
+              "title": "持续拖动角点",
+              "test_ids": [
+                "PAP-PRV-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "旧预览晚于新状态返回",
+              "test_ids": [
+                "PAP-PRV-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PRV-REQ-003",
+          "title": "In-scope 提交绑定当前预览哈希",
+          "scenarios": [
+            {
+              "title": "预览后又移动角点",
+              "test_ids": [
+                "PAP-PRV-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "OOS partial 提交",
+              "test_ids": [
+                "PAP-PRV-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PRV-REQ-004",
+          "title": "结构错误分为硬阻断和软警告",
+          "scenarios": [
+            {
+              "title": "明确自交",
+              "test_ids": [
+                "PAP-PRV-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "top/bottom 横向偏差较大",
+              "test_ids": [
+                "PAP-PRV-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PRV-REQ-005",
+          "title": "严重 Manhattan 偏差必须提醒",
+          "scenarios": [
+            {
+              "title": "工人保留非标准布局",
+              "test_ids": [
+                "PAP-PRV-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-PRV-REQ-006",
+          "title": "错误必须定位到具体对象",
+          "scenarios": [
+            {
+              "title": "相邻墙面冲突",
+              "test_ids": [
+                "PAP-PRV-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "task-batch-assignment",
+      "prefix": "TBA",
+      "implementation_task_sections": [
+        "4"
+      ],
+      "requirements": [
+        {
+          "requirement_id": "PAP-TBA-REQ-001",
+          "title": "Task 是不可变标注合同",
+          "scenarios": [
+            {
+              "title": "Manual 改为 Semi",
+              "test_ids": [
+                "PAP-TBA-SC-001"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "修改显示合同",
+              "test_ids": [
+                "PAP-TBA-SC-002"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-002",
+          "title": "Task ID 不回收",
+          "scenarios": [
+            {
+              "title": "删除误建草稿",
+              "test_ids": [
+                "PAP-TBA-SC-003"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "取消已发布任务",
+              "test_ids": [
+                "PAP-TBA-SC-004"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-003",
+          "title": "外部来源键与平台标识分离",
+          "scenarios": [
+            {
+              "title": "导入含旧任务编号的数据",
+              "test_ids": [
+                "PAP-TBA-SC-005"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-004",
+          "title": "WorkBatch 允许多任务并行工作",
+          "scenarios": [
+            {
+              "title": "暂缓困难任务",
+              "test_ids": [
+                "PAP-TBA-SC-006"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "返回先前任务",
+              "test_ids": [
+                "PAP-TBA-SC-007"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-005",
+          "title": "Assignment 工作状态与复核状态分离",
+          "scenarios": [
+            {
+              "title": "已提交 Revision 要求修改",
+              "test_ids": [
+                "PAP-TBA-SC-008"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-006",
+          "title": "管理员手工分配和辅助建议",
+          "scenarios": [
+            {
+              "title": "管理员批准建议",
+              "test_ids": [
+                "PAP-TBA-SC-009"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "管理员覆盖建议",
+              "test_ids": [
+                "PAP-TBA-SC-010"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-007",
+          "title": "同一 Task 支持独立复标",
+          "scenarios": [
+            {
+              "title": "追加一名独立工人",
+              "test_ids": [
+                "PAP-TBA-SC-011"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-008",
+          "title": "OOS 与 Skip 明确分离",
+          "scenarios": [
+            {
+              "title": "工人提交 OOS",
+              "test_ids": [
+                "PAP-TBA-SC-012"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "工人 Skip 技术故障",
+              "test_ids": [
+                "PAP-TBA-SC-013"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-009",
+          "title": "批次冻结不自动提交草稿",
+          "scenarios": [
+            {
+              "title": "批次关闭时存在返工草稿",
+              "test_ids": [
+                "PAP-TBA-SC-014"
+              ],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

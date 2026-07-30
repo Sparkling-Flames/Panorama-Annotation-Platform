@@ -7,7 +7,7 @@ context: |
   治理：openspec/specs 是当前有效产品行为真源，openspec/changes 是待实施变更真源。ADR 只解释架构理由，不能覆盖 OpenSpec。
   协作：Codex 是唯一开发执行主体。Grill 仅在用户显式要求时进行需求质询，其讨论结果不是正式需求，确认后的决策必须写入 OpenSpec。
   质量：行为变更和缺陷修复采用 TDD；不得通过削弱断言、伪造夹具或绕过真实行为让测试通过。
-  已知产品方向（不构成本阶段的实施授权）：标注者只编辑 2D 几何和元标签；3D 是只读派生视图；未来数据合同应尽量兼容 Label Studio 导出和 HOHONET 分析工具，但兼容边界必须在具体 change 中明确。
+  已知产品方向（不构成本阶段的实施授权）：标注者只编辑 2D 几何和元标签；3D 是只读派生视图；平台采用领域专用 canonical schema 和稳定 ID，不保证 Label Studio 导出形状兼容。当前 HOHONET/Label Studio 实验保持隔离；未来如需复用旧论文数据，只通过独立、一次性的离线转换 bundle 适配，具体边界由对应 change 明确。
 
 rules:
   proposal:

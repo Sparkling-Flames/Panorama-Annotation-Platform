@@ -1,0 +1,9 @@
+-r base.in
+
+bandit==1.9.4
+django-stubs==6.0.7
+mypy==2.3.0
+pip-audit==2.10.1
+pytest==9.1.1
+pytest-django==4.12.0
+ruff==0.16.0

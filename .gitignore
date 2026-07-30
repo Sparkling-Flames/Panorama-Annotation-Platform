@@ -4,6 +4,15 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+.venv/
+.lock-venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+test-results/
+playwright-report/
 
 # Runtime and local state
 *.log
