@@ -6,9 +6,11 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, Final
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from qcloud_cos.cos_exception import CosClientError, CosServiceError
 
+from .formats import media_format
 from .models import MediaObjectRegistration, MediaVariant
 
 MANIFEST_FIELDS: Final = {"objects", "schema_version"}
@@ -48,7 +50,6 @@ class MediaManifestEntry:
     format: str
 
 
-@transaction.atomic
 def register_media_manifest(
     *,
     payload: object,
@@ -68,11 +69,12 @@ def register_media_manifest(
             "utf-8"
         )
     ).hexdigest()
-    registrations = []
     for entry in entries:
         _verify_cos_object(entry=entry, client=client, bucket=bucket)
-        registrations.append(_register_entry(entry=entry, manifest_sha256=manifest_sha256))
-    return tuple(registrations)
+    with transaction.atomic():
+        return tuple(
+            _register_entry(entry=entry, manifest_sha256=manifest_sha256) for entry in entries
+        )
 
 
 def _parse_manifest(payload: object) -> tuple[MediaManifestEntry, ...]:
@@ -98,6 +100,17 @@ def _parse_manifest(payload: object) -> tuple[MediaManifestEntry, ...]:
 
 
 def _validate_entry(entry: MediaManifestEntry) -> None:
+    if any(
+        not isinstance(value, str)
+        for value in (
+            entry.source_key,
+            entry.version_id,
+            entry.content_sha256,
+            entry.crc64ecma,
+            entry.format,
+        )
+    ):
+        raise MediaManifestInvalid("Manifest text fields must be strings.")
     if not entry.source_key.strip() or not entry.version_id.strip():
         raise MediaManifestInvalid("Source key and version ID are required.")
     if re.fullmatch(r"[0-9a-f]{64}", entry.content_sha256) is None:
@@ -154,6 +167,14 @@ def _verify_cos_object(*, entry: MediaManifestEntry, client: Any, bucket: str) -
         for name, value in optional_metadata.items()
     ):
         raise MediaManifestConflict("COS custom metadata does not match the trusted manifest.")
+    if (
+        media_format(
+            content_type=normalized.get("content-type"),
+            source_key=entry.source_key,
+        )
+        != entry.format
+    ):
+        raise MediaManifestConflict("COS media format does not match the trusted manifest.")
 
 
 def _register_entry(
@@ -162,12 +183,19 @@ def _register_entry(
     manifest_sha256: str,
 ) -> MediaObjectRegistration:
     values = asdict(entry)
-    existing = MediaObjectRegistration.objects.filter(source_key=entry.source_key).first()
-    if existing is not None:
-        if any(getattr(existing, field) != value for field, value in values.items()):
-            raise MediaManifestConflict("The COS source key is already registered differently.")
-        return existing
-    return MediaObjectRegistration.objects.create(
-        **values,
-        manifest_sha256=manifest_sha256,
-    )
+    try:
+        registration, _created = MediaObjectRegistration.objects.get_or_create(
+            source_key=entry.source_key,
+            defaults={
+                **values,
+                "manifest_sha256": manifest_sha256,
+            },
+        )
+    except ValidationError:
+        existing = MediaObjectRegistration.objects.filter(source_key=entry.source_key).first()
+        if existing is None:
+            raise
+        registration = existing
+    if any(getattr(registration, field) != value for field, value in values.items()):
+        raise MediaManifestConflict("The COS source key is already registered differently.")
+    return registration

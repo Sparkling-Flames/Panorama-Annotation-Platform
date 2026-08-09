@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 from typing import Any, Protocol, cast
 
 from django.conf import settings
 from qcloud_cos import CosConfig, CosS3Client
 from qcloud_cos.cos_exception import CosClientError, CosServiceError
 
+from .formats import media_format
 from .models import MediaObjectRegistration
 
 
@@ -135,7 +135,7 @@ class TencentCosCatalog:
                 "COS custom metadata differs from its trusted registration."
             )
 
-        format_name = _media_format(
+        format_name = media_format(
             content_type=normalized_headers.get("content-type"),
             source_key=registration.source_key,
         )
@@ -195,20 +195,3 @@ def configured_cos_client() -> tuple[Any, str]:
     if settings.COS_SESSION_TOKEN:
         config_kwargs["Token"] = settings.COS_SESSION_TOKEN
     return CosS3Client(CosConfig(**config_kwargs)), settings.COS_BUCKET
-
-
-def _media_format(*, content_type: str | None, source_key: str) -> str | None:
-    normalized_content_type = (
-        content_type.split(";", maxsplit=1)[0].strip().lower() if content_type else ""
-    )
-    if normalized_content_type == "image/png":
-        return "png"
-    if normalized_content_type in {"image/jpeg", "image/jpg"}:
-        return "jpeg"
-
-    suffix = PurePosixPath(source_key).suffix.lower()
-    if suffix == ".png":
-        return "png"
-    if suffix in {".jpeg", ".jpg"}:
-        return "jpeg"
-    return None
