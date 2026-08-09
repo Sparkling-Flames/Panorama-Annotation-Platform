@@ -37,6 +37,8 @@ jobs:
           python -m pip install --require-hashes -r backend/requirements/dev.lock
       - name: Reject committed credentials
         run: python scripts/check_secrets.py
+      - name: Reject legacy experiment runtime coupling
+        run: python scripts/check_repository_isolation.py
       - name: Validate OpenSpec scenario traceability
         run: python scripts/validate_openspec_traceability.py
       - name: Check Python formatting and lint
