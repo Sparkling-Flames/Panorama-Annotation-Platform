@@ -78,8 +78,8 @@
 
 ## 8. Active time 与离线恢复切片
 
-- [ ] 8.1 【Red】为 15 秒 idle、30 秒 heartbeat、focus/visibility、允许 interaction type 和 page-open 不计时编写前端状态机假时钟测试（`activity-offline`）。
-- [ ] 8.2 【Green】实现粗粒度 ActivityEvent 生成和 active lease，不采集 pointer 坐标、按键内容或累计秒数。
+- [x] 8.1 【Red】为 15 秒 idle、30 秒 heartbeat、focus/visibility、允许 interaction type 和 page-open 不计时编写前端状态机假时钟测试（`activity-offline`）。
+- [x] 8.2 【Green】实现粗粒度 ActivityEvent 生成和 active lease，不采集 pointer 坐标、按键内容或累计秒数。（本项完成前端状态机与不可变客户端事件信封；`server_received_at`、领域/工作区校验和服务端派生仍由 8.3/8.4 完成，真实 Assignment 页面挂接随 6.1/6.2 完成。）
 - [ ] 8.3 【Red】为 event_id 幂等、sequence、客户端单调时钟、服务端区间推导、休眠/超长间隔封顶、离线重放、多工作区去重，以及 Activity 写入的 session、Assignment 归属和有效工作区校验编写后端属性测试。
 - [ ] 8.4 【Green】在 Activity 接收事务内执行领域归属与工作区校验，实现事件接收与版本化派生器，分别输出 initial/revision/rework/unsubmitted time。
 - [ ] 8.5 【Red】为 IndexedDB Draft patch/事件/Undo 队列、断网继续编辑、离线提交禁用编写浏览器 E2E。
