@@ -11,6 +11,7 @@ export interface WorkspaceLockManager {
 const WORKSPACE_LOCK_NAME = "panorama-annotation-edit-workspace";
 
 export class WorkspaceTabCoordinator {
+  private generation = 0;
   private releaseCurrentLock: (() => void) | undefined;
   private lockRequest: Promise<void> | undefined;
 
@@ -20,6 +21,7 @@ export class WorkspaceTabCoordinator {
     if (this.releaseCurrentLock) {
       return Promise.resolve("editable");
     }
+    const generation = ++this.generation;
 
     return new Promise<WorkspaceTabState>((resolve, reject) => {
       this.lockRequest = this.lockManager
@@ -27,16 +29,24 @@ export class WorkspaceTabCoordinator {
           WORKSPACE_LOCK_NAME,
           { ifAvailable: true, mode: "exclusive" },
           async (lock) => {
-            if (lock === null) {
+            if (lock === null || generation !== this.generation) {
               resolve("conflict");
               return;
             }
 
             resolve("editable");
+            let releaseLock!: () => void;
             await new Promise<void>((release) => {
-              this.releaseCurrentLock = release;
+              releaseLock = release;
+              if (generation === this.generation) {
+                this.releaseCurrentLock = release;
+              } else {
+                release();
+              }
             });
-            this.releaseCurrentLock = undefined;
+            if (this.releaseCurrentLock === releaseLock) {
+              this.releaseCurrentLock = undefined;
+            }
           },
         )
         .catch(reject);
@@ -44,8 +54,10 @@ export class WorkspaceTabCoordinator {
   }
 
   release(): void {
-    this.releaseCurrentLock?.();
+    this.generation += 1;
+    const releaseLock = this.releaseCurrentLock;
     this.releaseCurrentLock = undefined;
+    releaseLock?.();
     void this.lockRequest;
   }
 }

@@ -27,6 +27,37 @@ class FakeWorkspaceLockManager implements WorkspaceLockManager {
   }
 }
 
+class DelayedWorkspaceLockManager implements WorkspaceLockManager {
+  private grantPending: (() => void) | undefined;
+  private locked = false;
+
+  request<T>(
+    _name: string,
+    _options: { ifAvailable: true; mode: "exclusive" },
+    callback: (lock: Lock | null) => Promise<T> | T,
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.grantPending = () => {
+        this.locked = true;
+        void Promise.resolve(callback({ name: "workspace", mode: "exclusive" } as Lock))
+          .then(resolve, reject)
+          .finally(() => {
+            this.locked = false;
+          });
+      };
+    });
+  }
+
+  grant(): void {
+    this.grantPending?.();
+    this.grantPending = undefined;
+  }
+
+  isLocked(): boolean {
+    return this.locked;
+  }
+}
+
 describe("WorkspaceTabCoordinator", () => {
   it("allows only one editable annotation tab and releases the browser lock", async () => {
     const lockManager = new FakeWorkspaceLockManager();
@@ -43,5 +74,17 @@ describe("WorkspaceTabCoordinator", () => {
     const nextTab = new WorkspaceTabCoordinator(lockManager);
     await expect(nextTab.acquire()).resolves.toBe("editable");
     nextTab.release();
+  });
+
+  it("releases a lock that arrives after the pending acquire was cancelled", async () => {
+    const lockManager = new DelayedWorkspaceLockManager();
+    const coordinator = new WorkspaceTabCoordinator(lockManager);
+
+    const staleAcquire = coordinator.acquire();
+    coordinator.release();
+    lockManager.grant();
+
+    await expect(staleAcquire).resolves.toBe("conflict");
+    await vi.waitFor(() => expect(lockManager.isLocked()).toBe(false));
   });
 });

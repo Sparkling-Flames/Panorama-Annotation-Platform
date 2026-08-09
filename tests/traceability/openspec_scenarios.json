@@ -607,8 +607,10 @@
               "test_ids": [
                 "PAP-ANN-SC-004"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/annotation/AnnotationEditor.test.tsx"
+              ]
             }
           ]
         },

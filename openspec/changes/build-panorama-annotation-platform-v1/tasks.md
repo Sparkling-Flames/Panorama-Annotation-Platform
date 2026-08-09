@@ -50,7 +50,7 @@
 - [ ] 5.6 【Green】实现首版固定元标签表单与中英文 copy 加载，不构建通用表单设计器。
 - [ ] 5.7 【Red】为 scope 二元、OOS reason、best_effort_complete/partial/not_drawable 三种尝试状态及无最低时间门槛编写测试。
 - [ ] 5.8 【Green】实现 OOS 编辑/提交 UI 与分支校验，证明 partial/not_drawable 不会被迫伪造闭合几何。
-- [ ] 5.9 【Red/Green】实现 2D point pair 增删拖动、顺序/seam 编辑和本地 Undo/Redo；编辑器仅在工作区状态为 editable 时挂载，冲突 tab 不得编辑；组件测试验证稳定 ID 与派生 wall/BEV 不进入 canonical 状态。
+- [x] 5.9 【Red/Green】实现 2D point pair 增删拖动、顺序/seam 编辑和本地 Undo/Redo；编辑器仅在工作区状态为 editable 时挂载，冲突 tab 不得编辑；组件测试验证稳定 ID 与派生 wall/BEV 不进入 canonical 状态。本项只验收内存组件，真实 Assignment/CurrentDraft 接入和持久化留在 6.1/6.2。
 
 ## 6. Draft、Revision、Review 与返工切片
 

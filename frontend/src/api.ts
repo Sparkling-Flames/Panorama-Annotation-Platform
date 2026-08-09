@@ -16,7 +16,10 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   }
   if (!SAFE_METHODS.has(method)) {
     if (csrfToken() === undefined) {
-      const bootstrap = await fetch("/api/auth/csrf", { credentials: "same-origin" });
+      const bootstrap = await fetch("/api/auth/csrf", {
+        credentials: "same-origin",
+        ...(init.signal === undefined ? {} : { signal: init.signal }),
+      });
       if (!bootstrap.ok) {
         throw new Error("CSRF bootstrap failed");
       }

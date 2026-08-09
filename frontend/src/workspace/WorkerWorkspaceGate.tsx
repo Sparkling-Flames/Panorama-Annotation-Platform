@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../api";
 import { WorkspaceTabCoordinator } from "./workspaceTabCoordinator";
@@ -8,10 +8,13 @@ type WorkspaceState =
 
 const RENEW_INTERVAL_MS = 45_000;
 
-export function WorkerWorkspaceGate() {
+export function WorkerWorkspaceGate({ children }: { children?: ReactNode }) {
   const [state, setState] = useState<WorkspaceState>("acquiring");
+  const acquireRequest = useRef<AbortController | null>(null);
+  const attempt = useRef(0);
   const coordinator = useRef<WorkspaceTabCoordinator | null>(null);
   const mounted = useRef(false);
+  const renewalRequest = useRef<AbortController | null>(null);
   const renewTimer = useRef<number | undefined>(undefined);
   const clientInstanceId = useRef(crypto.randomUUID());
   const tabId = useRef(crypto.randomUUID());
@@ -23,33 +26,73 @@ export function WorkerWorkspaceGate() {
     }
   }
 
-  async function renewWorkspace(): Promise<void> {
+  function beginAttempt(): number {
+    attempt.current += 1;
+    acquireRequest.current?.abort();
+    acquireRequest.current = null;
+    renewalRequest.current?.abort();
+    renewalRequest.current = null;
+    stopRenewal();
+    return attempt.current;
+  }
+
+  function isCurrent(attemptId: number): boolean {
+    return mounted.current && attempt.current === attemptId;
+  }
+
+  function leaveWorkspace(attemptId: number, nextState: WorkspaceState): void {
+    if (!isCurrent(attemptId)) {
+      return;
+    }
+    beginAttempt();
+    coordinator.current?.release();
+    setState(nextState);
+  }
+
+  async function renewWorkspace(attemptId: number): Promise<void> {
+    if (!isCurrent(attemptId) || renewalRequest.current !== null) {
+      return;
+    }
+    const controller = new AbortController();
+    renewalRequest.current = controller;
     try {
       const response = await apiFetch("/api/workspace/renew", {
         body: JSON.stringify({ tab_id: tabId.current }),
         method: "POST",
+        signal: controller.signal,
       });
-      if (!response.ok && mounted.current) {
-        stopRenewal();
-        coordinator.current?.release();
-        setState("error");
+      if (isCurrent(attemptId) && !response.ok) {
+        leaveWorkspace(attemptId, "error");
       }
     } catch {
-      if (mounted.current) {
-        stopRenewal();
-        coordinator.current?.release();
-        setState("offline");
+      if (isCurrent(attemptId) && !controller.signal.aborted) {
+        leaveWorkspace(attemptId, "offline");
+      }
+    } finally {
+      if (renewalRequest.current === controller) {
+        renewalRequest.current = null;
       }
     }
   }
 
-  function startRenewal(): void {
+  function startRenewal(attemptId: number): void {
     stopRenewal();
-    renewTimer.current = window.setInterval(() => void renewWorkspace(), RENEW_INTERVAL_MS);
+    renewTimer.current = window.setInterval(
+      () => void renewWorkspace(attemptId),
+      RENEW_INTERVAL_MS,
+    );
   }
 
-  async function acquireServerWorkspace(takeover: boolean): Promise<void> {
+  async function acquireServerWorkspace(
+    takeover: boolean,
+    attemptId = beginAttempt(),
+  ): Promise<void> {
+    if (!isCurrent(attemptId)) {
+      return;
+    }
     setState("acquiring");
+    const controller = new AbortController();
+    acquireRequest.current = controller;
     try {
       const response = await apiFetch("/api/workspace/acquire", {
         body: JSON.stringify({
@@ -58,49 +101,62 @@ export function WorkerWorkspaceGate() {
           takeover,
         }),
         method: "POST",
+        signal: controller.signal,
       });
-      if (!mounted.current) {
+      if (!isCurrent(attemptId)) {
         return;
       }
       if (response.ok) {
         setState("editable");
-        startRenewal();
+        startRenewal(attemptId);
         return;
       }
       const payload = (await response.json()) as { error?: { code?: string } };
+      if (!isCurrent(attemptId)) {
+        return;
+      }
       if (payload.error?.code === "workspace_takeover_required") {
         setState("takeover_required");
         return;
       }
-      coordinator.current?.release();
-      setState(payload.error?.code === "workspace_tab_conflict" ? "local_conflict" : "error");
+      leaveWorkspace(
+        attemptId,
+        payload.error?.code === "workspace_tab_conflict" ? "local_conflict" : "error",
+      );
     } catch {
-      if (mounted.current) {
-        coordinator.current?.release();
-        setState("error");
+      if (isCurrent(attemptId) && !controller.signal.aborted) {
+        leaveWorkspace(attemptId, "error");
+      }
+    } finally {
+      if (acquireRequest.current === controller) {
+        acquireRequest.current = null;
       }
     }
   }
 
   async function acquireLocalWorkspace(): Promise<void> {
+    const attemptId = beginAttempt();
     const currentCoordinator = coordinator.current;
     if (currentCoordinator === null) {
-      setState("error");
+      if (mounted.current) {
+        setState("error");
+      }
       return;
     }
     setState("acquiring");
     try {
       const localState = await currentCoordinator.acquire();
-      if (!mounted.current) {
-        currentCoordinator.release();
-      } else if (localState === "conflict") {
+      if (!isCurrent(attemptId)) {
+        return;
+      }
+      if (localState === "conflict") {
         setState("local_conflict");
       } else {
-        await acquireServerWorkspace(false);
+        await acquireServerWorkspace(false, attemptId);
       }
     } catch {
-      if (mounted.current) {
-        setState("error");
+      if (isCurrent(attemptId)) {
+        leaveWorkspace(attemptId, "error");
       }
     }
   }
@@ -111,6 +167,7 @@ export function WorkerWorkspaceGate() {
       setState("error");
       return () => {
         mounted.current = false;
+        beginAttempt();
       };
     }
 
@@ -120,15 +177,23 @@ export function WorkerWorkspaceGate() {
 
     return () => {
       mounted.current = false;
-      stopRenewal();
+      beginAttempt();
       currentCoordinator.release();
+      if (coordinator.current === currentCoordinator) {
+        coordinator.current = null;
+      }
     };
   }, []);
 
   return (
     <section aria-label="工人工作区">
       {state === "acquiring" ? <p>正在取得工作区租约…</p> : null}
-      {state === "editable" ? <p>工作区可编辑。</p> : null}
+      {state === "editable" ? (
+        <>
+          <p>工作区可编辑。</p>
+          {children}
+        </>
+      ) : null}
       {state === "local_conflict" ? (
         <div>
           <p>此浏览器已有另一个可编辑标签页。</p>
