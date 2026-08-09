@@ -50,4 +50,8 @@ test("browser media fixtures enter through trusted manifest registration", async
 
   assert.doesNotMatch(runner, /MediaObjectRegistration\.objects\.create/);
   assert.match(runner, /register_media_manifest/);
+  assert.match(runner, /PANORAMA_E2E_COS_CONTROL_FILE/);
+  assert.match(runner, /PANORAMA_E2E_FRONTEND_URL/);
+  assert.match(runner, /PANORAMA_E2E_SQLITE_PATH/);
+  assert.match(runner, /getAvailablePort/);
 });

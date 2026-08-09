@@ -17,14 +17,24 @@ export class WorkspaceTabCoordinator {
 
   constructor(private readonly lockManager: WorkspaceLockManager = navigator.locks) {}
 
-  acquire(): Promise<WorkspaceTabState> {
+  async acquire(): Promise<WorkspaceTabState> {
     if (this.releaseCurrentLock) {
-      return Promise.resolve("editable");
+      return "editable";
     }
+    while (this.lockRequest !== undefined) {
+      await this.lockRequest.catch(() => undefined);
+      if (this.releaseCurrentLock) {
+        return "editable";
+      }
+    }
+    return this.requestLock();
+  }
+
+  private requestLock(): Promise<WorkspaceTabState> {
     const generation = ++this.generation;
 
     return new Promise<WorkspaceTabState>((resolve, reject) => {
-      this.lockRequest = this.lockManager
+      const lockRequest = this.lockManager
         .request<void>(
           WORKSPACE_LOCK_NAME,
           { ifAvailable: true, mode: "exclusive" },
@@ -49,7 +59,13 @@ export class WorkspaceTabCoordinator {
             }
           },
         )
-        .catch(reject);
+        .catch(reject)
+        .finally(() => {
+          if (this.lockRequest === lockRequest) {
+            this.lockRequest = undefined;
+          }
+        });
+      this.lockRequest = lockRequest;
     });
   }
 

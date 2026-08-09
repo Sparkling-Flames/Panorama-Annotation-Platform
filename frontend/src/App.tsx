@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "./api";
+import { AssignmentSwitcher } from "./assignment/AssignmentSwitcher";
 import { MediaImportWizard } from "./media/MediaImportWizard";
 import { WorkerWorkspaceGate } from "./workspace/WorkerWorkspaceGate";
 
@@ -40,7 +41,9 @@ export default function App() {
       <p>OpenSpec 实施中</p>
       {session?.authenticated && session.role === "admin" ? <MediaImportWizard /> : null}
       {session?.authenticated && session.role === "worker" && !session.must_change_password ? (
-        <WorkerWorkspaceGate />
+        <WorkerWorkspaceGate>
+          {({ tabId }) => <AssignmentSwitcher tabId={tabId} />}
+        </WorkerWorkspaceGate>
       ) : null}
       {session?.authenticated && session.role === "worker" && session.must_change_password ? (
         <p>请先修改临时密码再进入工作区。</p>

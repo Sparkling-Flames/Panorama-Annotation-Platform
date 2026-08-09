@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from typing import Any, NoReturn
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from identity.models import User
 from media.models import Asset, MediaImportPreview, MediaVariant
 
 
@@ -236,3 +237,93 @@ class TaskMediaVariant(models.Model):
         if self.task.status != Task.Status.DRAFT:
             raise ValidationError("Published task media bindings are immutable.")
         return super().delete(*args, **kwargs)
+
+
+class WorkBatch(models.Model):
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        FROZEN = "frozen", "Frozen"
+        CLOSED = "closed", "Closed"
+
+    batch_id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("created_at", "batch_id")
+
+
+class Assignment(models.Model):
+    class QueueState(models.TextChoices):
+        READY = "ready", "Ready"
+        DEFERRED = "deferred", "Deferred"
+        NEEDS_REVISIT = "needs_revisit", "Needs revisit"
+
+    class WorkState(models.TextChoices):
+        ASSIGNED = "assigned", "Assigned"
+        IN_PROGRESS = "in_progress", "In progress"
+        SUBMITTED = "submitted", "Submitted"
+        SKIPPED = "skipped", "Skipped"
+        REVOKED = "revoked", "Revoked"
+
+    class ReviewState(models.TextChoices):
+        UNREVIEWED = "unreviewed", "Unreviewed"
+        ACCEPTED = "accepted", "Accepted"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        ADJUDICATED = "adjudicated", "Adjudicated"
+        CLOSED = "closed", "Closed"
+
+    assignment_id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    batch = models.ForeignKey(WorkBatch, on_delete=models.PROTECT, related_name="assignments")
+    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name="assignments")
+    worker = models.ForeignKey(User, on_delete=models.PROTECT, related_name="assignments")
+    queue_state = models.CharField(
+        max_length=24,
+        choices=QueueState.choices,
+        default=QueueState.READY,
+    )
+    work_state = models.CharField(
+        max_length=24,
+        choices=WorkState.choices,
+        default=WorkState.ASSIGNED,
+    )
+    review_state = models.CharField(
+        max_length=24,
+        choices=ReviewState.choices,
+        default=ReviewState.UNREVIEWED,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("created_at", "assignment_id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("task", "worker"),
+                name="work_assignment_task_worker_unique",
+            )
+        ]
+        indexes = [models.Index(fields=("worker", "batch"), name="work_assign_worker_batch")]
+
+    @property
+    def resource_id(self) -> str:
+        return str(self.assignment_id)
+
+    @property
+    def owner_worker_id(self) -> UUID:
+        return self.worker.worker_id
+
+    def clean(self) -> None:
+        super().clean()
+        if self.worker.role != User.Role.WORKER:
+            raise ValidationError("Assignments require a worker account.")
+        if self.task.status != Task.Status.PUBLISHED:
+            raise ValidationError("Assignments require a published task.")
+        if self._state.adding and self.batch.status != WorkBatch.Status.OPEN:
+            raise ValidationError("Assignments require an open batch.")
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.full_clean()
+        super().save(*args, **kwargs)

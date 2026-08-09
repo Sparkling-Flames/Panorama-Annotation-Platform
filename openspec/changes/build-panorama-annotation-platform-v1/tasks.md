@@ -32,8 +32,8 @@
 
 - [x] 4.1 【Red】为 Task 不可变合同、Task ID tombstone/不回收、cancel/supersede、external_task_key 分离，以及显式新轮次复用既有 Asset 但创建新 Task 编写状态与数据库测试（`task-batch-assignment`）。
 - [x] 4.2 【Green】实现 Task 生命周期、Manual/Semi 显示合同字段和显式轮次，并接通媒体导入向导的新轮次创建意图，使 4.1 通过。
-- [ ] 4.3 【Red】为 WorkBatch 多 Assignment、ready/deferred/needs_revisit 切换、不限制单 in-progress、仅访问本人 Assignment、foreign/missing 不泄露及撤销会话拒绝业务请求编写服务/API/E2E 测试。
-- [ ] 4.4 【Green】实现按工人归属约束的批次/Assignment API 与切换 UI，验证困难任务不会卡住整个批次；CurrentDraft 的读取与恢复留在 6.1/6.2 验收。
+- [x] 4.3 【Red】为 WorkBatch 多 Assignment、ready/deferred/needs_revisit 切换、不限制单 in-progress、仅访问本人 Assignment、foreign/missing 不泄露及撤销会话拒绝业务请求编写服务/API/E2E 测试。
+- [x] 4.4 【Green】实现按工人归属约束的批次/Assignment API 与切换 UI，验证困难任务不会卡住整个批次；CurrentDraft 的读取与恢复留在 6.1/6.2 验收。
 - [ ] 4.5 【Red】为 work_state/review_state 分离、同 Task 多独立工人、同工人重复暴露阻断编写状态机测试。
 - [ ] 4.6 【Green】实现 Assignment 与独立暴露约束，重构状态转换为显式领域服务并运行回归。
 - [ ] 4.7 【Red】为 OOS 正式提交与固定 skip 原因、skip 保留草稿/时间但不建 Revision、重新入队策略编写合同测试。

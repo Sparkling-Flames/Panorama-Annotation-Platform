@@ -192,11 +192,30 @@ def renew_worker_workspace(
     session_token: str | None,
     tab_id: UUID,
 ) -> None:
+    workspace = lock_worker_workspace_for_write(
+        worker=worker,
+        session_key=session_key,
+        session_token=session_token,
+        tab_id=tab_id,
+    )
+    workspace.lease_expires_at = timezone.now() + timedelta(
+        seconds=settings.WORKSPACE_LEASE_SECONDS
+    )
+    workspace.save(update_fields=["lease_expires_at", "updated_at"])
+
+
+def lock_worker_workspace_for_write(
+    *,
+    worker: User,
+    session_key: str,
+    session_token: str | None,
+    tab_id: UUID,
+) -> ActiveWorkspace:
     locked_worker = User.objects.select_for_update().get(pk=worker.pk)
     workspace = ActiveWorkspace.objects.select_for_update().filter(worker=locked_worker).first()
     try:
         parsed_token = UUID(session_token) if session_token is not None else None
-    except ValueError as error:
+    except (TypeError, ValueError) as error:
         raise WorkspaceLeaseLost from error
 
     now = timezone.now()
@@ -208,6 +227,4 @@ def renew_worker_workspace(
         or workspace.tab_id != tab_id
     ):
         raise WorkspaceLeaseLost
-
-    workspace.lease_expires_at = now + timedelta(seconds=settings.WORKSPACE_LEASE_SECONDS)
-    workspace.save(update_fields=["lease_expires_at", "updated_at"])
+    return workspace

@@ -36,6 +36,9 @@ class DelayedWorkspaceLockManager implements WorkspaceLockManager {
     _options: { ifAvailable: true; mode: "exclusive" },
     callback: (lock: Lock | null) => Promise<T> | T,
   ): Promise<T> {
+    if (this.grantPending !== undefined || this.locked) {
+      return Promise.resolve(callback(null));
+    }
     return new Promise<T>((resolve, reject) => {
       this.grantPending = () => {
         this.locked = true;
@@ -86,5 +89,21 @@ describe("WorkspaceTabCoordinator", () => {
 
     await expect(staleAcquire).resolves.toBe("conflict");
     await vi.waitFor(() => expect(lockManager.isLocked()).toBe(false));
+  });
+
+  it("waits for a cancelled pending request before reacquiring the same browser lock", async () => {
+    const lockManager = new DelayedWorkspaceLockManager();
+    const coordinator = new WorkspaceTabCoordinator(lockManager);
+
+    const staleAcquire = coordinator.acquire();
+    coordinator.release();
+    const currentAcquire = coordinator.acquire();
+    lockManager.grant();
+
+    await expect(staleAcquire).resolves.toBe("conflict");
+    await vi.waitFor(() => expect(lockManager.isLocked()).toBe(false));
+    lockManager.grant();
+    await expect(currentAcquire).resolves.toBe("editable");
+    coordinator.release();
   });
 });

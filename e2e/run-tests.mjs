@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer as createNetServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -12,13 +13,36 @@ import { createServer } from "vite";
 
 import { resolvePythonExecutable } from "./python-executable.mjs";
 
-const BACKEND_URL = "http://127.0.0.1:8000";
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(currentDirectory, "..");
 const frontendRoot = path.join(repositoryRoot, "frontend");
 const managePy = path.join(repositoryRoot, "backend", "manage.py");
 const playwrightCli = path.join(repositoryRoot, "node_modules", "@playwright", "test", "cli.js");
 const pythonExecutable = resolvePythonExecutable({ repositoryRoot });
+
+async function getAvailablePort() {
+  const server = createNetServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("Failed to allocate an E2E TCP port");
+  }
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error === undefined ? resolve() : reject(error)));
+  });
+  return address.port;
+}
+
+const backendPort = await getAvailablePort();
+let frontendPort = await getAvailablePort();
+while (frontendPort === backendPort) {
+  frontendPort = await getAvailablePort();
+}
+const BACKEND_URL = `http://127.0.0.1:${backendPort}`;
+const FRONTEND_URL = `http://127.0.0.1:${frontendPort}`;
 const e2eCredentials = {
   administratorPassword: `e2e-${randomBytes(24).toString("base64url")}`,
   workerChangedPassword: `e2e-${randomBytes(24).toString("base64url")}`,
@@ -35,6 +59,11 @@ const fixtureCommand = [
   "User.objects.create_superuser(username='e2e-admin', password=os.environ['PANORAMA_E2E_ADMIN_PASSWORD'])",
   "User.objects.create_user(username='e2e-worker', password=os.environ['PANORAMA_E2E_WORKER_INITIAL_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000001'))",
   "User.objects.create_user(username='e2e-workspace-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000002'))",
+  "User.objects.create_user(username='e2e-tab-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000003'))",
+  "User.objects.create_user(username='e2e-takeover-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000004'))",
+  "User.objects.create_user(username='e2e-network-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000005'))",
+  "User.objects.create_user(username='e2e-media-role-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000006'))",
+  "User.objects.create_user(username='e2e-assignment-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000007'))",
   "register_media_manifest(payload=E2E_MEDIA_MANIFEST, client=E2ECosClient(), bucket='e2e-controlled-cos')",
 ].join("; ");
 
@@ -83,12 +112,15 @@ async function stopDjangoServer(server) {
 
 const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "panorama-e2e-"));
 const testDatabase = path.join(temporaryDirectory, "e2e.sqlite3");
+const cosControlFile = path.join(temporaryDirectory, "cos-control.json");
+await writeFile(cosControlFile, JSON.stringify({ drift_source_key: null }), "utf8");
 const djangoEnvironment = {
   ...process.env,
-  DJANGO_CSRF_TRUSTED_ORIGINS: "http://127.0.0.1:4173",
+  DJANGO_CSRF_TRUSTED_ORIGINS: FRONTEND_URL,
   DJANGO_SETTINGS_MODULE: "panorama_annotation.test_settings",
   PANORAMA_E2E_ADMIN_PASSWORD: e2eCredentials.administratorPassword,
   PANORAMA_E2E_CONTROLLED_COS: "1",
+  PANORAMA_E2E_COS_CONTROL_FILE: cosControlFile,
   PANORAMA_E2E_WORKER_INITIAL_PASSWORD: e2eCredentials.workerInitialPassword,
   PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD: e2eCredentials.workspaceWorkerPassword,
   PANORAMA_TEST_SQLITE_PATH: testDatabase,
@@ -104,18 +136,23 @@ try {
     env: djangoEnvironment,
   });
 
-  djangoServer = spawn(pythonExecutable, [managePy, "runserver", "127.0.0.1:8000", "--noreload"], {
-    cwd: repositoryRoot,
-    env: djangoEnvironment,
-    stdio: "inherit",
-  });
+  djangoServer = spawn(
+    pythonExecutable,
+    [managePy, "runserver", `127.0.0.1:${backendPort}`, "--noreload"],
+    {
+      cwd: repositoryRoot,
+      env: djangoEnvironment,
+      stdio: "inherit",
+    },
+  );
   await waitForBackend(djangoServer);
 
   frontendServer = await createServer({
     root: frontendRoot,
     server: {
       host: "127.0.0.1",
-      port: 4173,
+      port: frontendPort,
+      proxy: { "/api": BACKEND_URL },
       strictPort: true,
     },
   });
@@ -128,6 +165,11 @@ try {
         ...process.env,
         PANORAMA_E2E_ADMIN_PASSWORD: e2eCredentials.administratorPassword,
         PANORAMA_E2E_BACKEND_URL: BACKEND_URL,
+        PANORAMA_E2E_COS_CONTROL_FILE: cosControlFile,
+        PANORAMA_E2E_FRONTEND_URL: FRONTEND_URL,
+        PANORAMA_E2E_PYTHON: pythonExecutable,
+        PANORAMA_E2E_REPOSITORY_ROOT: repositoryRoot,
+        PANORAMA_E2E_SQLITE_PATH: testDatabase,
         PANORAMA_E2E_WORKER_CHANGED_PASSWORD: e2eCredentials.workerChangedPassword,
         PANORAMA_E2E_WORKER_INITIAL_PASSWORD: e2eCredentials.workerInitialPassword,
         PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD: e2eCredentials.workspaceWorkerPassword,

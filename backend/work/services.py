@@ -1,17 +1,126 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import cast
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from identity.authorization import (
+    OwnedResource,
+    ResourceKind,
+    ResourceNotFound,
+    resolve_owned_resource,
+)
+from identity.models import User
+from identity.services import lock_worker_workspace_for_write
 from media.models import Asset, MediaImportPreview, MediaVariant
 
-from .models import Task, TaskMediaVariant
+from .models import Assignment, Task, TaskMediaVariant, WorkBatch
 
 DEFAULT_META_SCHEMA_VERSION = "v1"
 DEFAULT_META_COPY_VERSION = "v1"
+
+
+def create_work_batch(*, name: str) -> WorkBatch:
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValidationError("A batch name is required.", code="batch_name_required")
+    return WorkBatch.objects.create(name=clean_name)
+
+
+def assign_task(*, batch: WorkBatch, task: Task, worker: User) -> Assignment:
+    assignment = Assignment(batch=batch, task=task, worker=worker)
+    assignment.save()
+    return assignment
+
+
+def get_owned_assignment(*, actor: User, assignment_id: UUID) -> Assignment:
+    def lookup(resource_id: str) -> OwnedResource | None:
+        assignment = (
+            Assignment.objects.select_related("batch", "task", "worker")
+            .filter(assignment_id=resource_id)
+            .first()
+        )
+        return cast(OwnedResource, assignment) if assignment is not None else None
+
+    return cast(
+        Assignment,
+        resolve_owned_resource(
+            actor=actor,
+            resource_kind=ResourceKind.ASSIGNMENT,
+            resource_id=str(assignment_id),
+            lookup=lookup,
+        ),
+    )
+
+
+def _lock_owned_assignment(*, actor: User, assignment_id: UUID) -> Assignment:
+    assignment = (
+        Assignment.objects.select_for_update()
+        .select_related("batch", "task", "worker")
+        .filter(assignment_id=assignment_id, worker=actor)
+        .first()
+    )
+    if assignment is None:
+        raise ResourceNotFound
+    return assignment
+
+
+@transaction.atomic
+def open_owned_assignment(
+    *,
+    actor: User,
+    assignment_id: UUID,
+    session_key: str,
+    session_token: str | None,
+    tab_id: UUID,
+) -> Assignment:
+    lock_worker_workspace_for_write(
+        worker=actor,
+        session_key=session_key,
+        session_token=session_token,
+        tab_id=tab_id,
+    )
+    assignment = _lock_owned_assignment(actor=actor, assignment_id=assignment_id)
+    if assignment.batch.status != WorkBatch.Status.OPEN:
+        raise ValidationError("The batch is not open.", code="batch_not_open")
+    if assignment.work_state == Assignment.WorkState.ASSIGNED:
+        assignment.work_state = Assignment.WorkState.IN_PROGRESS
+        assignment.save(update_fields=["updated_at", "work_state"])
+    elif assignment.work_state != Assignment.WorkState.IN_PROGRESS:
+        raise ValidationError("The assignment cannot be opened.", code="assignment_not_editable")
+    return assignment
+
+
+@transaction.atomic
+def set_owned_assignment_queue_state(
+    *,
+    actor: User,
+    assignment_id: UUID,
+    queue_state: str,
+    session_key: str,
+    session_token: str | None,
+    tab_id: UUID,
+) -> Assignment:
+    if queue_state not in Assignment.QueueState.values:
+        raise ValidationError("Unsupported queue state.", code="queue_state_invalid")
+    lock_worker_workspace_for_write(
+        worker=actor,
+        session_key=session_key,
+        session_token=session_token,
+        tab_id=tab_id,
+    )
+    assignment = _lock_owned_assignment(actor=actor, assignment_id=assignment_id)
+    if assignment.batch.status != WorkBatch.Status.OPEN:
+        raise ValidationError("The batch is not open.", code="batch_not_open")
+    if assignment.work_state == Assignment.WorkState.REVOKED:
+        raise ValidationError("The assignment is revoked.", code="assignment_revoked")
+    if assignment.queue_state != queue_state:
+        assignment.queue_state = queue_state
+        assignment.save(update_fields=["queue_state", "updated_at"])
+    return assignment
 
 
 @transaction.atomic

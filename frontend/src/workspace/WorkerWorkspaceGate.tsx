@@ -8,7 +8,13 @@ type WorkspaceState =
 
 const RENEW_INTERVAL_MS = 45_000;
 
-export function WorkerWorkspaceGate({ children }: { children?: ReactNode }) {
+type WorkspaceRenderContext = { tabId: string };
+
+export function WorkerWorkspaceGate({
+  children,
+}: {
+  children?: ReactNode | ((context: WorkspaceRenderContext) => ReactNode);
+}) {
   const [state, setState] = useState<WorkspaceState>("acquiring");
   const acquireRequest = useRef<AbortController | null>(null);
   const attempt = useRef(0);
@@ -171,7 +177,7 @@ export function WorkerWorkspaceGate({ children }: { children?: ReactNode }) {
       };
     }
 
-    const currentCoordinator = new WorkspaceTabCoordinator();
+    const currentCoordinator = coordinator.current ?? new WorkspaceTabCoordinator();
     coordinator.current = currentCoordinator;
     void acquireLocalWorkspace();
 
@@ -179,9 +185,6 @@ export function WorkerWorkspaceGate({ children }: { children?: ReactNode }) {
       mounted.current = false;
       beginAttempt();
       currentCoordinator.release();
-      if (coordinator.current === currentCoordinator) {
-        coordinator.current = null;
-      }
     };
   }, []);
 
@@ -191,7 +194,7 @@ export function WorkerWorkspaceGate({ children }: { children?: ReactNode }) {
       {state === "editable" ? (
         <>
           <p>工作区可编辑。</p>
-          {children}
+          {typeof children === "function" ? children({ tabId: tabId.current }) : children}
         </>
       ) : null}
       {state === "local_conflict" ? (
