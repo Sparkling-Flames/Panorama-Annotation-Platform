@@ -56,7 +56,6 @@ jobs:
       - name: Verify PostgreSQL immutable records
         env:
           DJANGO_SECRET_KEY: "django-insecure-ci-postgres-only"
-          PANORAMA_TEST_SQLITE: "0"
           POSTGRES_PASSWORD: postgres-test-password
         run: |
           python backend/manage.py migrate work --noinput

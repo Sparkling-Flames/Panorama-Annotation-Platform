@@ -2,7 +2,6 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  fullyParallel: true,
   retries: 0,
   // The local harness uses one shared SQLite database, which cannot safely serve concurrent writers.
   workers: 1,

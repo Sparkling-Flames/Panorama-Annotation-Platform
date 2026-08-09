@@ -147,28 +147,7 @@ async function imageIdentity(image: Locator) {
 test("PAP-MID-SC-003 PAP-MID-SC-005 PAP-MID-SC-006 imports real media and creates explicit rounds", async ({
   page,
 }) => {
-  if (ADMIN_PASSWORD === undefined) {
-    throw new Error("Missing PANORAMA_E2E_ADMIN_PASSWORD");
-  }
-  await page.goto("/");
-  const loginStatus = await page.evaluate(async (password) => {
-    await fetch("/api/auth/csrf", { credentials: "same-origin" });
-    const csrfToken = document.cookie
-      .split("; ")
-      .find((cookie) => cookie.startsWith("csrftoken="))
-      ?.slice("csrftoken=".length);
-    const response = await fetch("/api/auth/login", {
-      body: JSON.stringify({ password, username: "e2e-admin" }),
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken ?? "" },
-      method: "POST",
-    });
-    return response.status;
-  }, ADMIN_PASSWORD);
-  expect(loginStatus).toBe(200);
-  await page.reload();
-
-  await expect(page.getByRole("heading", { name: "管理员 COS 媒体导入" })).toBeVisible();
+  await loginAdministrator(page);
   await page.getByLabel("Asset source key").fill("panoramas/e2e");
   await page.getByLabel("COS 前缀").fill("incoming/e2e");
   await page.getByRole("button", { name: "浏览 COS 候选" }).click();
@@ -314,9 +293,7 @@ test("PAP-MID-REQ-003 rejects an expired preview through the real publish endpoi
   await expect(page.getByRole("region", { name: "媒体发布结果" })).not.toBeVisible();
 });
 
-test("PAP-MID-SC-005 repeats the same publish without duplicating database identities", async ({
-  page,
-}) => {
+test("PAP-MID-SC-005 retry returns the same publication response", async ({ page }) => {
   await loginAdministrator(page);
   const preview = await createPreview(page, {
     assetSourceKey: "panoramas/e2e-repeat",

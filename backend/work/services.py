@@ -148,11 +148,8 @@ def create_task_draft(
         raise ValidationError(
             "Task media must already be published.", code="task_media_unpublished"
         )
-    if mode == Task.Mode.MANUAL:
-        prediction_exposed, model_issue_enabled, assist_enabled = False, False, False
-    elif mode == Task.Mode.SEMI:
-        prediction_exposed, model_issue_enabled, assist_enabled = True, True, False
-    else:
+    display_policy = Task.display_policy_for_mode(mode)
+    if display_policy is None:
         raise ValidationError("Unsupported task mode.", code="task_mode_invalid")
 
     task = Task.objects.create(
@@ -160,9 +157,7 @@ def create_task_draft(
         mode=mode,
         meta_schema_version=DEFAULT_META_SCHEMA_VERSION,
         meta_copy_version=DEFAULT_META_COPY_VERSION,
-        prediction_exposed=prediction_exposed,
-        model_issue_enabled=model_issue_enabled,
-        assist_enabled=assist_enabled,
+        **display_policy,
         external_task_key=external_task_key,
         dataset_source=dataset_source,
         import_batch_key=import_batch_key,

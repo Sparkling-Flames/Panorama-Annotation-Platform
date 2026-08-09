@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import json
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
-from django.contrib.auth.models import AbstractBaseUser
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
-from identity.models import User
+from identity.http import error_response, request_json, require_admin
 from work.models import Task
 from work.services import create_manual_annotation_round
 
@@ -44,32 +42,11 @@ IMPORT_REQUEST_FIELDS = {
 PUBLICATION_REQUEST_FIELDS = {"expected_plan_sha256", "preview_id"}
 
 
-def error_response(code: str, *, status: int) -> JsonResponse:
-    return JsonResponse({"error": {"code": code}}, status=status)
-
-
-def request_json(request: HttpRequest) -> dict[str, Any] | None:
-    try:
-        payload = json.loads(request.body or b"{}")
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-def require_admin(request: HttpRequest) -> JsonResponse | None:
-    user = getattr(request, "user", None)
-    if not isinstance(user, AbstractBaseUser) or not user.is_authenticated:
-        return error_response("authentication_required", status=401)
-    if not isinstance(user, User) or user.role != User.Role.ADMIN:
-        return error_response("admin_required", status=403)
-    return None
-
-
 @require_GET
 def candidates_view(request: HttpRequest) -> JsonResponse:
-    denied = require_admin(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     marker = request.GET.get("marker")
     prefix = request.GET.get("prefix", "")
     if marker is not None and not marker:
@@ -92,15 +69,15 @@ def candidates_view(request: HttpRequest) -> JsonResponse:
 
 @require_POST
 def import_preview_view(request: HttpRequest) -> JsonResponse:
-    denied = require_admin(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
 
     try:
         preview, candidates = _preview_from_request(request)
         stored_preview = store_import_preview(
             preview=preview,
-            actor=cast(User, request.user),
+            actor=actor,
         )
     except _ImportRequestError as error:
         return error_response(error.code, status=error.status)
@@ -116,9 +93,9 @@ def import_preview_view(request: HttpRequest) -> JsonResponse:
 
 @require_POST
 def import_publish_view(request: HttpRequest) -> JsonResponse:
-    denied = require_admin(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
 
     catalog: Any | None = None
 
@@ -137,11 +114,11 @@ def import_publish_view(request: HttpRequest) -> JsonResponse:
         with transaction.atomic():
             publication = publish_stored_preview(
                 preview_id=preview_id,
-                actor=cast(User, request.user),
+                actor=actor,
                 expected_plan_sha256=expected_plan_sha256,
                 candidate_loader=load_current_candidate,
             )
-            if publication.annotation_round_request is not None:
+            if publication.create_annotation_round:
                 annotation_round = create_manual_annotation_round(
                     source_preview_id=preview_id,
                     asset=publication.asset,
@@ -206,15 +183,15 @@ def import_publish_view(request: HttpRequest) -> JsonResponse:
 
 @require_POST
 def import_cancel_view(request: HttpRequest) -> JsonResponse:
-    denied = require_admin(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
 
     try:
         preview_id, expected_plan_sha256 = _publication_request(request)
         stored_preview = cancel_stored_preview(
             preview_id=preview_id,
-            actor=cast(User, request.user),
+            actor=actor,
             expected_plan_sha256=expected_plan_sha256,
         )
     except _ImportRequestError as error:

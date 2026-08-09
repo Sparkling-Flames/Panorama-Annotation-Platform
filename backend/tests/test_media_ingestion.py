@@ -234,20 +234,6 @@ def test_media_import_rolls_back_when_a_variant_cannot_be_published(
     assert models.MediaVariant.objects.count() == 0
 
 
-def test_pap_mid_sc_007_cancelling_preview_does_not_publish_assets_or_task_intent() -> None:
-    module = ingestion()
-    models = media_models()
-
-    preview = module.preview_import(import_plan(create_annotation_round=True))
-    cancelled_preview = module.cancel_preview(preview)
-
-    assert cancelled_preview.annotation_round_request is None
-    with pytest.raises(module.PreviewCancelled):
-        module.publish_import(cancelled_preview)
-    assert models.Asset.objects.count() == 0
-    assert models.MediaVariant.objects.count() == 0
-
-
 def test_pap_mid_sc_006_explicit_new_annotation_round_reuses_published_asset() -> None:
     module = ingestion()
     models = media_models()
@@ -259,8 +245,7 @@ def test_pap_mid_sc_006_explicit_new_annotation_round_reuses_published_asset() -
 
     assert new_round_result.created_asset is False
     assert new_round_result.asset.asset_id == original_result.asset.asset_id
-    assert new_round_result.annotation_round_request is not None
-    assert new_round_result.annotation_round_request.asset_id == original_result.asset.asset_id
+    assert new_round_result.create_annotation_round is True
     assert models.Asset.objects.count() == 1
     assert models.MediaVariant.objects.count() == 2
 

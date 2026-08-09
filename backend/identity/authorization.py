@@ -5,8 +5,6 @@ from enum import StrEnum
 from typing import Protocol, TypeVar
 from uuid import UUID
 
-from django.http import JsonResponse
-
 from .models import User
 from .services import record_account_audit
 
@@ -26,17 +24,10 @@ ResourceT = TypeVar("ResourceT", bound=OwnedResource)
 
 
 class ResourceNotFound(Exception):
-    status_code = 404
+    code = "resource_not_found"
 
     def __init__(self) -> None:
-        super().__init__("resource_not_found")
-
-    @property
-    def response_payload(self) -> dict[str, dict[str, str]]:
-        return {"error": {"code": "resource_not_found"}}
-
-    def to_response(self) -> JsonResponse:
-        return JsonResponse(self.response_payload, status=self.status_code)
+        super().__init__(self.code)
 
 
 def resolve_owned_resource(

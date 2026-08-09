@@ -21,6 +21,22 @@ class Task(models.Model):
         SUPERSEDED = "superseded", "Superseded"
         TOMBSTONED = "tombstoned", "Tombstoned"
 
+    @classmethod
+    def display_policy_for_mode(cls, mode: str | None) -> dict[str, bool] | None:
+        if mode == cls.Mode.MANUAL:
+            return {
+                "assist_enabled": False,
+                "model_issue_enabled": False,
+                "prediction_exposed": False,
+            }
+        if mode == cls.Mode.SEMI:
+            return {
+                "assist_enabled": False,
+                "model_issue_enabled": True,
+                "prediction_exposed": True,
+            }
+        return None
+
     task_id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
     asset = models.ForeignKey(
         Asset,
@@ -108,17 +124,12 @@ class Task(models.Model):
             or not self.meta_copy_version
         ):
             raise ValidationError("Active tasks require an asset, mode, and metadata versions.")
-        if self.mode == self.Mode.MANUAL:
-            expected_policy = (False, False, False)
-        elif self.mode == self.Mode.SEMI:
-            expected_policy = (True, True, False)
-        else:
-            expected_policy = None
-        if expected_policy != (
-            self.prediction_exposed,
-            self.model_issue_enabled,
-            self.assist_enabled,
-        ):
+        expected_policy = self.display_policy_for_mode(self.mode)
+        if expected_policy != {
+            "assist_enabled": self.assist_enabled,
+            "model_issue_enabled": self.model_issue_enabled,
+            "prediction_exposed": self.prediction_exposed,
+        }:
             raise ValidationError("Task display policy must match its mode.")
         if self.mode == self.Mode.MANUAL and self.prediction_artifact_id is not None:
             raise ValidationError("Manual tasks cannot bind prediction artifacts.")

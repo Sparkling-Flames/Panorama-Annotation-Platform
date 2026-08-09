@@ -4,13 +4,16 @@ export const ACTIVE_TIME_RULE_VERSION = "v1";
 
 export type ActivityVisibility = "hidden" | "visible";
 
-export type AllowedInteractionType =
-  | "active_3d_check"
-  | "annotation_2d_edit"
-  | "image_zoom_pan"
-  | "metadata_edit"
-  | "pair_reorder"
-  | "undo_redo";
+const ALLOWED_INTERACTION_TYPES = [
+  "active_3d_check",
+  "annotation_2d_edit",
+  "image_zoom_pan",
+  "metadata_edit",
+  "pair_reorder",
+  "undo_redo",
+] as const;
+
+export type AllowedInteractionType = (typeof ALLOWED_INTERACTION_TYPES)[number];
 
 export type ActivityEventType = "focus" | "heartbeat" | "idle" | "interaction" | "visibility";
 
@@ -36,14 +39,7 @@ export type ClientActivityEvent = Readonly<
   }
 >;
 
-const ALLOWED_INTERACTIONS = new Set<string>([
-  "active_3d_check",
-  "annotation_2d_edit",
-  "image_zoom_pan",
-  "metadata_edit",
-  "pair_reorder",
-  "undo_redo",
-]);
+const ALLOWED_INTERACTIONS = new Set<string>(ALLOWED_INTERACTION_TYPES);
 
 export class ActivityTracker {
   private activeLeaseId: string | null = null;

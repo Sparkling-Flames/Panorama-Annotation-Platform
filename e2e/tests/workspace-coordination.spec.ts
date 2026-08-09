@@ -31,38 +31,13 @@ async function loginWorker(page: Page, username: string): Promise<void> {
   await page.reload();
 }
 
-async function enterEditableThroughRecovery(page: Page): Promise<void> {
-  const editable = page.getByText("工作区可编辑。");
-  const localConflict = page.getByText("此浏览器已有另一个可编辑标签页。");
-  await expect(editable.or(localConflict)).toBeVisible();
-  if (await localConflict.isVisible()) {
-    await page.getByRole("button", { name: "重试进入工作区" }).click();
-  }
-  await expect(editable).toBeVisible();
-}
-
 test("PAP-IAM-SC-008 first tab becomes editable before a second browser tab is blocked", async ({
   context,
   page,
 }) => {
   await loginWorker(page, "e2e-workspace-worker");
 
-  // This assertion intentionally remains Red while StrictMode makes the first tab lose its own
-  // native Web Lock. Do not replace it with the recovery helper used by downstream scenarios.
   await expect(page.getByText("工作区可编辑。")).toBeVisible();
-
-  const secondTab = await context.newPage();
-  await secondTab.goto("/");
-  await expect(secondTab.getByText("此浏览器已有另一个可编辑标签页。")).toBeVisible();
-  await expect(secondTab.getByText("工作区可编辑。")).not.toBeVisible();
-});
-
-test("PAP-IAM-SC-008 blocks the second tab after the first tab explicitly recovers", async ({
-  context,
-  page,
-}) => {
-  await loginWorker(page, "e2e-tab-worker");
-  await enterEditableThroughRecovery(page);
 
   const secondTab = await context.newPage();
   await secondTab.goto("/");
@@ -80,16 +55,11 @@ test("PAP-IAM-SC-007 requires takeover and makes the old page fail its next rene
     const oldPage = await oldContext.newPage();
     await oldPage.clock.install();
     await loginWorker(oldPage, "e2e-takeover-worker");
-    await enterEditableThroughRecovery(oldPage);
+    await expect(oldPage.getByText("工作区可编辑。")).toBeVisible();
 
     const newPage = await newContext.newPage();
     await loginWorker(newPage, "e2e-takeover-worker");
-    const localConflict = newPage.getByText("此浏览器已有另一个可编辑标签页。");
     const takeoverRequired = newPage.getByText("另一设备持有工作区租约，需要明确接管。");
-    await expect(localConflict.or(takeoverRequired)).toBeVisible();
-    if (await localConflict.isVisible()) {
-      await newPage.getByRole("button", { name: "重试进入工作区" }).click();
-    }
     await expect(takeoverRequired).toBeVisible();
     await expect(newPage.getByText("工作区可编辑。")).not.toBeVisible();
     await newPage.getByRole("button", { name: "接管工作区" }).click();
@@ -107,13 +77,13 @@ test("PAP-IAM-SC-007 requires takeover and makes the old page fail its next rene
   }
 });
 
-test("PAP-IAM-REQ-004 leaves editable on network loss and recovers only after retry", async ({
+test("PAP-IAM-REQ-004 exits editable on network loss and recovers only after retry", async ({
   context,
   page,
 }) => {
   await page.clock.install();
   await loginWorker(page, "e2e-network-worker");
-  await enterEditableThroughRecovery(page);
+  await expect(page.getByText("工作区可编辑。")).toBeVisible();
 
   await context.setOffline(true);
   await page.clock.fastForward(45_000);

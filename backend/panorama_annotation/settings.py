@@ -57,21 +57,13 @@ COS_ADMIN_PREVIEW_URL_SECONDS = int(os.environ.get("COS_ADMIN_PREVIEW_URL_SECOND
 USE_TZ = True
 TIME_ZONE = "UTC"
 
-if os.environ.get("PANORAMA_TEST_SQLITE") == "1":
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": ":memory:",
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "panorama_annotation"),
+        "USER": os.environ.get("POSTGRES_USER", "panorama_annotation"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
+        "HOST": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("POSTGRES_DB", "panorama_annotation"),
-            "USER": os.environ.get("POSTGRES_USER", "panorama_annotation"),
-            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-            "HOST": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-        }
-    }
+}

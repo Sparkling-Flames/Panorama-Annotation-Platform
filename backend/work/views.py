@@ -7,9 +7,16 @@ from django.db import IntegrityError
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from identity.authorization import ResourceNotFound
+from identity.http import (
+    current_session_key,
+    error_response,
+    opaque_uuid,
+    request_json,
+    require_admin,
+    require_worker,
+)
 from identity.models import User
 from identity.services import WorkspaceLeaseLost, record_account_audit
-from identity.views import current_session_key, opaque_uuid, request_json, request_user
 
 from .models import Assignment, Task, WorkBatch
 from .services import (
@@ -19,30 +26,6 @@ from .services import (
     open_owned_assignment,
     set_owned_assignment_queue_state,
 )
-
-
-def error_response(code: str, *, status: int) -> JsonResponse:
-    return JsonResponse({"error": {"code": code}}, status=status)
-
-
-def require_worker(request: HttpRequest) -> tuple[User | None, JsonResponse | None]:
-    actor = request_user(request)
-    if actor is None:
-        return None, error_response("authentication_required", status=401)
-    if actor.role != User.Role.WORKER:
-        return None, error_response("worker_required", status=403)
-    if actor.must_change_password:
-        return None, error_response("password_change_required", status=403)
-    return actor, None
-
-
-def require_admin(request: HttpRequest) -> tuple[User | None, JsonResponse | None]:
-    actor = request_user(request)
-    if actor is None:
-        return None, error_response("authentication_required", status=401)
-    if actor.role != User.Role.ADMIN:
-        return None, error_response("admin_required", status=403)
-    return actor, None
 
 
 def assignment_payload(assignment: Assignment) -> dict[str, object]:
@@ -62,9 +45,9 @@ def assignment_payload(assignment: Assignment) -> dict[str, object]:
 
 @require_POST
 def admin_work_batches_view(request: HttpRequest) -> JsonResponse:
-    _actor, denied = require_admin(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     payload = request_json(request)
     if payload is None or set(payload) != {"name"} or not isinstance(payload.get("name"), str):
         return error_response("invalid_work_batch", status=400)
@@ -80,15 +63,15 @@ def admin_work_batches_view(request: HttpRequest) -> JsonResponse:
 
 @require_POST
 def admin_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonResponse:
-    actor, denied = require_admin(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     payload = request_json(request)
     if payload is None or set(payload) != {"task_id", "worker_id"}:
         return error_response("invalid_assignment", status=400)
     task_id = opaque_uuid(payload.get("task_id"))
     worker_id = opaque_uuid(payload.get("worker_id"))
-    if task_id is None or worker_id is None or actor is None:
+    if task_id is None or worker_id is None:
         return error_response("invalid_assignment", status=400)
     batch = WorkBatch.objects.filter(batch_id=batch_id, status=WorkBatch.Status.OPEN).first()
     task = Task.objects.filter(
@@ -121,9 +104,9 @@ def admin_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonRe
 
 @require_GET
 def worker_batches_view(request: HttpRequest) -> JsonResponse:
-    actor, denied = require_worker(request)
-    if denied is not None:
-        return denied
+    actor = require_worker(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     batches = WorkBatch.objects.filter(assignments__worker=actor).distinct()
     return JsonResponse(
         {
@@ -137,9 +120,9 @@ def worker_batches_view(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def worker_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonResponse:
-    actor, denied = require_worker(request)
-    if denied is not None:
-        return denied
+    actor = require_worker(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     assignments = list(
         Assignment.objects.select_related("batch", "task")
         .filter(batch_id=batch_id, worker=actor)
@@ -152,15 +135,13 @@ def worker_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonR
 
 @require_GET
 def worker_assignment_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor, denied = require_worker(request)
-    if denied is not None:
-        return denied
-    if actor is None:
-        return error_response("authentication_required", status=401)
+    actor = require_worker(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     try:
         assignment = get_owned_assignment(actor=actor, assignment_id=assignment_id)
-    except ResourceNotFound as error:
-        return error.to_response()
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
     return JsonResponse(assignment_payload(assignment))
 
 
@@ -173,14 +154,12 @@ def _write_payload(request: HttpRequest) -> tuple[dict[str, object] | None, UUID
 
 @require_POST
 def worker_assignment_open_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor, denied = require_worker(request)
-    if denied is not None:
-        return denied
+    actor = require_worker(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     payload, tab_id = _write_payload(request)
     if payload is None or set(payload) != {"tab_id"} or tab_id is None:
         return error_response("invalid_assignment_open", status=400)
-    if actor is None:
-        return error_response("authentication_required", status=401)
     try:
         assignment = open_owned_assignment(
             actor=actor,
@@ -191,8 +170,8 @@ def worker_assignment_open_view(request: HttpRequest, assignment_id: UUID) -> Js
         )
     except WorkspaceLeaseLost:
         return error_response("workspace_lease_lost", status=409)
-    except ResourceNotFound as error:
-        return error.to_response()
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
     except ValidationError as error:
         return error_response(error.code or "assignment_not_editable", status=409)
     return JsonResponse(assignment_payload(assignment))
@@ -200,14 +179,12 @@ def worker_assignment_open_view(request: HttpRequest, assignment_id: UUID) -> Js
 
 @require_POST
 def worker_assignment_queue_state_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor, denied = require_worker(request)
-    if denied is not None:
-        return denied
+    actor = require_worker(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     payload, tab_id = _write_payload(request)
     if payload is None or set(payload) != {"queue_state", "tab_id"} or tab_id is None:
         return error_response("invalid_queue_state_request", status=400)
-    if actor is None:
-        return error_response("authentication_required", status=401)
     queue_state = payload.get("queue_state")
     if not isinstance(queue_state, str):
         return error_response("queue_state_invalid", status=400)
@@ -222,8 +199,8 @@ def worker_assignment_queue_state_view(request: HttpRequest, assignment_id: UUID
         )
     except WorkspaceLeaseLost:
         return error_response("workspace_lease_lost", status=409)
-    except ResourceNotFound as error:
-        return error.to_response()
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
     except ValidationError as error:
         status = 400 if error.code == "queue_state_invalid" else 409
         return error_response(error.code or "queue_state_invalid", status=status)

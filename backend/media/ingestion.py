@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 from datetime import timedelta
 from typing import Any, Final
 from uuid import UUID
@@ -32,10 +32,6 @@ class ImportConflict(ValidationError):
 
 class MediaSourceKeyConflict(ImportConflict):
     code = "media_source_key_conflict"
-
-
-class PreviewCancelled(ValidationError):
-    pass
 
 
 class StoredPreviewError(Exception):
@@ -86,16 +82,9 @@ class MediaImportPlan:
 
 
 @dataclass(frozen=True)
-class AnnotationRoundRequest:
-    asset_id: UUID
-
-
-@dataclass(frozen=True)
 class ImportPreview:
     plan: MediaImportPlan
     asset_will_be_reused: bool
-    annotation_round_request: AnnotationRoundRequest | None = None
-    cancelled: bool = False
 
 
 @dataclass(frozen=True)
@@ -104,7 +93,7 @@ class ImportPublication:
     media_variants: tuple[MediaVariant, ...]
     created_asset: bool
     created_media_variant_ids: frozenset[UUID]
-    annotation_round_request: AnnotationRoundRequest | None
+    create_annotation_round: bool
 
 
 CandidateLoader = Callable[[MediaVariantCandidate], MediaVariantCandidate]
@@ -116,10 +105,6 @@ def preview_import(plan: MediaImportPlan) -> ImportPreview:
         plan=plan,
         asset_will_be_reused=Asset.objects.filter(source_key=plan.asset_source_key).exists(),
     )
-
-
-def cancel_preview(preview: ImportPreview) -> ImportPreview:
-    return replace(preview, cancelled=True)
 
 
 def store_import_preview(*, preview: ImportPreview, actor: User) -> MediaImportPreview:
@@ -202,9 +187,6 @@ def publish_stored_preview(
 
 @transaction.atomic
 def publish_import(preview: ImportPreview) -> ImportPublication:
-    if preview.cancelled:
-        raise PreviewCancelled("Cancelled import previews cannot be published.")
-
     try:
         plan = preview.plan
         asset, created_asset = Asset.objects.get_or_create(source_key=plan.asset_source_key)
@@ -217,9 +199,6 @@ def publish_import(preview: ImportPreview) -> ImportPublication:
         raise
     except (IntegrityError, ValidationError) as error:
         raise ImportConflict("Media import conflicts with existing data.") from error
-    annotation_round_request = (
-        AnnotationRoundRequest(asset_id=asset.asset_id) if plan.create_annotation_round else None
-    )
     return ImportPublication(
         asset=asset,
         media_variants=media_variants,
@@ -227,7 +206,7 @@ def publish_import(preview: ImportPreview) -> ImportPublication:
         created_media_variant_ids=frozenset(
             media_variant.media_variant_id for media_variant, created in variant_results if created
         ),
-        annotation_round_request=annotation_round_request,
+        create_annotation_round=plan.create_annotation_round,
     )
 
 
@@ -365,11 +344,6 @@ def _publication_from_stored_preview(
         )
         for candidate in plan.variants
     )
-    annotation_round_request = (
-        AnnotationRoundRequest(asset_id=stored_preview.published_asset.asset_id)
-        if plan.create_annotation_round
-        else None
-    )
     return ImportPublication(
         asset=stored_preview.published_asset,
         media_variants=media_variants,
@@ -377,7 +351,7 @@ def _publication_from_stored_preview(
         created_media_variant_ids=frozenset(
             UUID(value) for value in stored_preview.publication_created_media_variant_ids
         ),
-        annotation_round_request=annotation_round_request,
+        create_annotation_round=plan.create_annotation_round,
     )
 
 

@@ -17,7 +17,7 @@
 
 ## 本地工具
 
-- Node.js `>= 20.19.0`
+- Node.js `>= 24.0.0 < 25`
 - OpenSpec CLI（本仓库由 `1.6.0` 初始化）
 - Codex 用户级技能：`grill-with-docs`、`grilling`、`domain-modeling`
 

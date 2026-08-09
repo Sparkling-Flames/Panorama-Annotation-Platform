@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-from typing import Any
-from uuid import UUID
-
 from django.contrib.auth import authenticate, login, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -12,6 +8,14 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .http import (
+    current_session_key,
+    error_response,
+    opaque_uuid,
+    request_json,
+    request_user,
+    require_admin,
+)
 from .models import User
 from .services import (
     WorkspaceConflict,
@@ -24,32 +28,6 @@ from .services import (
     revoke_worker_sessions,
     set_worker_enabled,
 )
-
-
-def error_response(code: str, *, status: int) -> JsonResponse:
-    return JsonResponse({"error": {"code": code}}, status=status)
-
-
-def request_json(request: HttpRequest) -> dict[str, Any] | None:
-    try:
-        value = json.loads(request.body or b"{}")
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return value if isinstance(value, dict) else None
-
-
-def request_user(request: HttpRequest) -> User | None:
-    candidate = getattr(request, "user", None)
-    return candidate if isinstance(candidate, User) and candidate.is_authenticated else None
-
-
-def admin_user(request: HttpRequest) -> tuple[User | None, JsonResponse | None]:
-    user = request_user(request)
-    if user is None:
-        return None, error_response("authentication_required", status=401)
-    if user.role != User.Role.ADMIN:
-        return None, error_response("admin_required", status=403)
-    return user, None
 
 
 def worker_payload(worker: User) -> dict[str, object]:
@@ -154,11 +132,9 @@ def workspace_session_view(request: HttpRequest) -> JsonResponse:
 
 @require_http_methods(["POST"])
 def workers_collection_view(request: HttpRequest) -> JsonResponse:
-    actor, denied = admin_user(request)
-    if denied is not None:
-        return denied
-    if actor is None:
-        return error_response("authentication_required", status=401)
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     payload = request_json(request)
     if payload is None:
         return error_response("invalid_json", status=400)
@@ -184,9 +160,9 @@ def workers_collection_view(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def worker_detail_view(request: HttpRequest, worker_id: str) -> JsonResponse:
-    _actor, denied = admin_user(request)
-    if denied is not None:
-        return denied
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     worker = find_worker(worker_id)
     if worker is None:
         return error_response("worker_not_found", status=404)
@@ -195,11 +171,9 @@ def worker_detail_view(request: HttpRequest, worker_id: str) -> JsonResponse:
 
 @require_POST
 def reset_password_view(request: HttpRequest, worker_id: str) -> JsonResponse:
-    actor, denied = admin_user(request)
-    if denied is not None:
-        return denied
-    if actor is None:
-        return error_response("authentication_required", status=401)
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     worker = find_worker(worker_id)
     if worker is None:
         return error_response("worker_not_found", status=404)
@@ -214,11 +188,9 @@ def reset_password_view(request: HttpRequest, worker_id: str) -> JsonResponse:
 
 @require_POST
 def revoke_sessions_view(request: HttpRequest, worker_id: str) -> HttpResponse:
-    actor, denied = admin_user(request)
-    if denied is not None:
-        return denied
-    if actor is None:
-        return error_response("authentication_required", status=401)
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     worker = find_worker(worker_id)
     if worker is None:
         return error_response("worker_not_found", status=404)
@@ -227,11 +199,9 @@ def revoke_sessions_view(request: HttpRequest, worker_id: str) -> HttpResponse:
 
 
 def set_enabled_view(request: HttpRequest, worker_id: str, *, enabled: bool) -> HttpResponse:
-    actor, denied = admin_user(request)
-    if denied is not None:
-        return denied
-    if actor is None:
-        return error_response("authentication_required", status=401)
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
     worker = find_worker(worker_id)
     if worker is None:
         return error_response("worker_not_found", status=404)
@@ -247,24 +217,6 @@ def disable_worker_view(request: HttpRequest, worker_id: str) -> HttpResponse:
 @require_POST
 def restore_worker_view(request: HttpRequest, worker_id: str) -> HttpResponse:
     return set_enabled_view(request, worker_id, enabled=True)
-
-
-def opaque_uuid(value: object) -> UUID | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        return UUID(value)
-    except ValueError:
-        return None
-
-
-def current_session_key(request: HttpRequest) -> str:
-    if request.session.session_key is None:
-        request.session.create()
-    session_key = request.session.session_key
-    if session_key is None:
-        raise RuntimeError("Django session backend did not allocate a session key")
-    return session_key
 
 
 @require_POST
