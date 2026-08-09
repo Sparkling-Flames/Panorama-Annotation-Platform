@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../api";
+import { AssignmentMedia } from "../media/AssignmentMedia";
 
 type WorkBatch = {
   batch_id: string;
@@ -176,7 +177,15 @@ export function AssignmentSwitcher({ tabId }: { tabId: string }) {
           );
         })}
       </ul>
-      {selectedAssignment ? <p>当前 Assignment：{assignmentLabel(selectedAssignment)}</p> : null}
+      {selectedAssignment ? (
+        <>
+          <p>当前 Assignment：{assignmentLabel(selectedAssignment)}</p>
+          <AssignmentMedia
+            assignmentId={selectedAssignment.assignment_id}
+            key={selectedAssignment.assignment_id}
+          />
+        </>
+      ) : null}
     </section>
   );
 }

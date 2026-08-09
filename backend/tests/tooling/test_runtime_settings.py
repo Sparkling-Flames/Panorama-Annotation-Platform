@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -42,3 +44,15 @@ def test_development_and_test_settings_use_stable_non_production_keys() -> None:
     }
     assert test_result.returncode == 0
     assert test_result.stdout.strip() == "django-insecure-panorama-test-only"
+
+
+@pytest.mark.parametrize("ttl", ["0", "301"])
+def test_signed_media_ttl_must_remain_short_and_positive(ttl: str) -> None:
+    result = _import_secret_key(
+        "settings",
+        COS_SIGNED_URL_SECONDS=ttl,
+        DJANGO_DEBUG="true",
+    )
+
+    assert result.returncode != 0
+    assert "COS_SIGNED_URL_SECONDS" in result.stderr

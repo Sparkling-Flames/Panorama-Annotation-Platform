@@ -52,7 +52,7 @@ async function createAnnotationRound(page: Page): Promise<string> {
   return (publication.body as { annotation_round: { task_id: string } }).annotation_round.task_id;
 }
 
-test("tasks 4.3/4.4 switch real owned Assignments", async ({ browser }) => {
+test("PAP-TBA-SC-006 PAP-TBA-SC-007 switches real owned Assignments", async ({ browser }) => {
   if (ADMIN_PASSWORD === undefined || WORKER_PASSWORD === undefined) {
     throw new Error("Missing assignment E2E credentials");
   }
@@ -91,6 +91,10 @@ test("tasks 4.3/4.4 switch real owned Assignments", async ({ browser }) => {
     await workerPage.getByRole("button", { name: `打开 ${secondTaskId}` }).click();
     await expect(workerPage.getByText(`当前 Assignment：${secondTaskId}`)).toBeVisible();
     await expect(workerPage.getByText("工作：in_progress")).toBeVisible();
+
+    await workerPage.getByRole("button", { name: `打开 ${firstTaskId}` }).click();
+    await expect(workerPage.getByText(`当前 Assignment：${firstTaskId}`)).toBeVisible();
+    await expect(workerPage.getByText("队列：deferred")).toBeVisible();
   } finally {
     await Promise.all([adminContext.close(), workerContext.close()]);
   }

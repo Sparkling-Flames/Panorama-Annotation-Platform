@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any
+from urllib.parse import quote
 
 _TEST_SIGNING_KEY = "django-insecure-panorama-test-only"
 os.environ["DJANGO_SECRET_KEY"] = _TEST_SIGNING_KEY
@@ -115,6 +116,15 @@ class E2ECosClient:
 
     def get_presigned_url(self, **kwargs: object) -> str:
         entry = E2E_COS_OBJECTS[str(kwargs["Key"])]
+        controlled_origin = os.environ.get("PANORAMA_E2E_COS_ORIGIN")
+        if controlled_origin:
+            params = kwargs["Params"]
+            if not isinstance(params, dict):
+                raise TypeError("Controlled COS signing requires query parameters")
+            return (
+                f"{controlled_origin}/{quote(str(kwargs['Key']), safe='/')}"
+                f"?versionId={quote(str(params['versionId']))}&signature=e2e-controlled"
+            )
         fallback_key = (
             "incoming/e2e/high.png" if entry["format"] == "png" else "incoming/e2e/compressed.jpg"
         )

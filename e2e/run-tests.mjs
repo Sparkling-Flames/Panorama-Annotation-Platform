@@ -1,13 +1,15 @@
 import { spawn } from "node:child_process";
+import { Buffer } from "node:buffer";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 
 import { createServer } from "vite";
 
@@ -41,8 +43,21 @@ let frontendPort = await getAvailablePort();
 while (frontendPort === backendPort) {
   frontendPort = await getAvailablePort();
 }
+let cosPort = await getAvailablePort();
+while (cosPort === backendPort || cosPort === frontendPort) {
+  cosPort = await getAvailablePort();
+}
 const BACKEND_URL = `http://127.0.0.1:${backendPort}`;
 const FRONTEND_URL = `http://127.0.0.1:${frontendPort}`;
+const COS_URL = `http://127.0.0.1:${cosPort}`;
+const HIGH_RESOLUTION_BYTES = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAIAAAD4YuoOAAAANElEQVR4nO3PMREAIAwEwYXBAFUM4F8jEr5Klyuu3wVc1fStueMV6PoIYiOIH0FsBPHtgg/rgQ2SFRRBtwAAAABJRU5ErkJggg==",
+  "base64",
+);
+const COMPRESSED_BYTES = Buffer.from(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/wAALCAAIABABAREA/8QAFQABAQAAAAAAAAAAAAAAAAAABgf/xAAjEAABAgUDBQAAAAAAAAAAAAACAREFIgQAAwcSIQYWIzNR/9oACAEBAAA/AAmm0C9Uny7X1ZG+wNOKyK4JYlmajoJX85orFyJJKKEbEjLs2vyl/wD/2Q==",
+  "base64",
+);
 const e2eCredentials = {
   administratorPassword: `e2e-${randomBytes(24).toString("base64url")}`,
   workerChangedPassword: `e2e-${randomBytes(24).toString("base64url")}`,
@@ -64,6 +79,7 @@ const fixtureCommand = [
   "User.objects.create_user(username='e2e-network-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000005'))",
   "User.objects.create_user(username='e2e-media-role-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000006'))",
   "User.objects.create_user(username='e2e-assignment-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000007'))",
+  "User.objects.create_user(username='e2e-media-delivery-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000008'))",
   "register_media_manifest(payload=E2E_MEDIA_MANIFEST, client=E2ECosClient(), bucket='e2e-controlled-cos')",
 ].join("; ");
 
@@ -121,14 +137,33 @@ const djangoEnvironment = {
   PANORAMA_E2E_ADMIN_PASSWORD: e2eCredentials.administratorPassword,
   PANORAMA_E2E_CONTROLLED_COS: "1",
   PANORAMA_E2E_COS_CONTROL_FILE: cosControlFile,
+  PANORAMA_E2E_COS_ORIGIN: COS_URL,
   PANORAMA_E2E_WORKER_INITIAL_PASSWORD: e2eCredentials.workerInitialPassword,
   PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD: e2eCredentials.workspaceWorkerPassword,
   PANORAMA_TEST_SQLITE_PATH: testDatabase,
 };
 let djangoServer;
 let frontendServer;
+const cosServer = createHttpServer((request, response) => {
+  const url = new URL(request.url ?? "/", COS_URL);
+  if (!url.searchParams.has("versionId")) {
+    response.writeHead(403).end();
+    return;
+  }
+  const highResolution = url.pathname.endsWith("/high.png");
+  response.writeHead(200, {
+    "Access-Control-Allow-Origin": FRONTEND_URL,
+    "Cache-Control": "no-store",
+    "Content-Type": highResolution ? "image/png" : "image/jpeg",
+  });
+  response.end(highResolution ? HIGH_RESOLUTION_BYTES : COMPRESSED_BYTES);
+});
 
 try {
+  await new Promise((resolve, reject) => {
+    cosServer.once("error", reject);
+    cosServer.listen(cosPort, "127.0.0.1", resolve);
+  });
   await run(pythonExecutable, [managePy, "migrate", "--noinput"], {
     env: djangoEnvironment,
   });
@@ -166,6 +201,7 @@ try {
         PANORAMA_E2E_ADMIN_PASSWORD: e2eCredentials.administratorPassword,
         PANORAMA_E2E_BACKEND_URL: BACKEND_URL,
         PANORAMA_E2E_COS_CONTROL_FILE: cosControlFile,
+        PANORAMA_E2E_COS_ORIGIN: COS_URL,
         PANORAMA_E2E_FRONTEND_URL: FRONTEND_URL,
         PANORAMA_E2E_PYTHON: pythonExecutable,
         PANORAMA_E2E_REPOSITORY_ROOT: repositoryRoot,
@@ -185,5 +221,6 @@ try {
 } finally {
   await frontendServer?.close();
   await stopDjangoServer(djangoServer);
+  await new Promise((resolve) => cosServer.close(resolve));
   await rm(temporaryDirectory, { force: true, recursive: true });
 }

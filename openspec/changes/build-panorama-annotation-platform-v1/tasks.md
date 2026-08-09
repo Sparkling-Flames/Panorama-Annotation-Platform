@@ -24,9 +24,9 @@
 - [x] 3.4 【Green】实现仅浏览受信 manifest 已登记 COS 版本的候选配对/预览/发布向导后端与最小 UI，不要求手写 JSON；允许同一 Asset 追加新的不可变同角色 MediaVariant，但禁止同一 source key 改变已登记元数据；运行幂等与重复导入回归。
 - [x] 3.5 【Red】为仅接受已拼接等距柱状图、拒绝 skybox 集和不兼容变体编写导入校验测试。
 - [x] 3.6 【Green】实现格式/比例/映射校验与稳定错误码，不引入 HOHONET/MP3D/ZInD 预处理运行时。
-- [ ] 3.7 【Red】基于真实 Assignment→Task→MediaVariant 关系，为不泄露 foreign/missing 响应、绑定精确 COS version 的对象级短期签名、过期续签、压缩图优先、高清无漂移切换、单变体回退和双失败 `image_unavailable` 编写 API/E2E 测试。
-- [ ] 3.8 【Green】在真实工人媒体端点按领域关系约束查询并实现绑定已登记 COS version 的私有 COS 直连交付与前端媒体状态机，证明图片字节不经应用服务器且首版不依赖 CDN。
-- [ ] 3.9 验证工人端没有创建/替换 Asset 的上传路径；待 3.8 的真实端点落地后，以端点测试固定 canonical 绑定，不预建无调用方抽象。
+- [ ] 3.7 【Red】基于真实 Assignment→Task→MediaVariant 关系，为不泄露 foreign/missing 响应、绑定精确 COS version 的对象级短期签名、过期续签、压缩图优先、高清无漂移切换、单变体回退和双失败 `image_unavailable` 编写 API/E2E 测试。（对象授权、签名、续签、回退、独立 COS 直连和媒体映射不变已有证据；真实 Draft/编辑器操作连续性与正式提交阻断留在 6.1/6.2/6.4 接入后补齐。）
+- [x] 3.8 【Green】在真实工人媒体端点按领域关系约束查询并实现绑定已登记 COS version 的私有 COS 直连交付与前端媒体状态机，证明图片字节不经应用服务器且首版不依赖 CDN。
+- [x] 3.9 验证工人端没有创建/替换 Asset 的上传路径；以 3.8 的真实端点测试固定 canonical 绑定，不预建无调用方抽象。
 
 ## 4. Task、WorkBatch、Assignment 与状态切片
 
@@ -34,8 +34,8 @@
 - [x] 4.2 【Green】实现 Task 生命周期、Manual/Semi 显示合同字段和显式轮次，并接通媒体导入向导的新轮次创建意图，使 4.1 通过。
 - [x] 4.3 【Red】为 WorkBatch 多 Assignment、ready/deferred/needs_revisit 切换、不限制单 in-progress、仅访问本人 Assignment、foreign/missing 不泄露及撤销会话拒绝业务请求编写服务/API/E2E 测试。
 - [x] 4.4 【Green】实现按工人归属约束的批次/Assignment API 与切换 UI，验证困难任务不会卡住整个批次；CurrentDraft 的读取与恢复留在 6.1/6.2 验收。
-- [ ] 4.5 【Red】为 work_state/review_state 分离、同 Task 多独立工人、同工人重复暴露阻断编写状态机测试。
-- [ ] 4.6 【Green】实现 Assignment 与独立暴露约束，重构状态转换为显式领域服务并运行回归。
+- [x] 4.5 【Red】为 work_state/review_state 分离、同 Task 多独立工人、同工人重复暴露阻断编写状态机测试。
+- [x] 4.6 【Green】实现 Assignment 与独立暴露约束，重构状态转换为显式领域服务并运行回归。
 - [ ] 4.7 【Red】为 OOS 正式提交与固定 skip 原因、skip 保留草稿/时间但不建 Revision、重新入队策略编写合同测试。
 - [ ] 4.8 【Green】实现 skip/OOS 分离、批次 skip 限额和管理员处置视图。
 - [ ] 4.9 【Red/Green】实现批次 freeze/reopen：测试并确保未提交草稿不自动提交、最新 Revision 保持正式、从未提交项仍 incomplete。

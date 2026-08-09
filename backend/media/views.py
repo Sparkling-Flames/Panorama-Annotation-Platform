@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpRequest, JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
-from identity.http import error_response, request_json, require_admin
-from work.models import Task
-from work.services import create_manual_annotation_round
+from identity.authorization import ResourceNotFound
+from identity.http import error_response, request_json, require_admin, require_worker
+from work.models import Assignment, Task, WorkBatch
+from work.services import create_manual_annotation_round, get_owned_assignment
 
 from .catalog import (
     CosCatalogUnavailable,
@@ -40,6 +44,95 @@ IMPORT_REQUEST_FIELDS = {
     "high_resolution_source_key",
 }
 PUBLICATION_REQUEST_FIELDS = {"expected_plan_sha256", "preview_id"}
+
+
+def _candidate_matches_variant(
+    candidate: MediaCatalogCandidate,
+    variant: MediaVariant,
+) -> bool:
+    return (
+        candidate.source_key == variant.source_key
+        and candidate.version_id == variant.object_version
+        and candidate.content_sha256 == variant.content_sha256
+        and candidate.content_length == variant.content_length
+        and candidate.crc64ecma == variant.content_crc64ecma
+        and candidate.width == variant.width
+        and candidate.height == variant.height
+        and candidate.format == variant.format
+    )
+
+
+@require_GET
+def worker_assignment_media_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
+    actor = require_worker(request)
+    if isinstance(actor, JsonResponse):
+        return actor
+    try:
+        assignment = get_owned_assignment(actor=actor, assignment_id=assignment_id)
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
+    if (
+        assignment.batch.status != WorkBatch.Status.OPEN
+        or assignment.task.status != Task.Status.PUBLISHED
+        or assignment.work_state == Assignment.WorkState.REVOKED
+    ):
+        return error_response("assignment_media_unavailable", status=409)
+
+    variants = sorted(
+        assignment.task.allowed_media_variants.filter(published_at__isnull=False),
+        key=lambda variant: variant.role != MediaVariant.Role.COMPRESSED,
+    )
+    expires_at = timezone.now() + timedelta(seconds=settings.COS_SIGNED_URL_SECONDS)
+    try:
+        catalog = get_cos_catalog()
+    except CosCatalogUnavailable:
+        return error_response("cos_unavailable", status=503)
+
+    available: list[dict[str, object]] = []
+    unavailable_roles: list[str] = []
+    temporary_failure = False
+    for variant in variants:
+        try:
+            candidate = catalog.get_candidate(source_key=variant.source_key)
+            if not _candidate_matches_variant(candidate, variant):
+                raise MediaCandidateIntegrityConflict
+        except CosCatalogUnavailable:
+            temporary_failure = True
+            unavailable_roles.append(variant.role)
+            continue
+        except (
+            MediaCandidateIntegrityConflict,
+            MediaCandidateInvalid,
+            MediaCandidateNotFound,
+        ):
+            unavailable_roles.append(variant.role)
+            continue
+        available.append(
+            {
+                "coordinate_mapping": variant.coordinate_mapping,
+                "height": variant.height,
+                "media_variant_id": str(variant.media_variant_id),
+                "role": variant.role,
+                "url": candidate.preview_url,
+                "width": variant.width,
+            }
+        )
+
+    if not available:
+        return error_response(
+            "cos_unavailable" if temporary_failure else "image_unavailable",
+            status=503 if temporary_failure else 409,
+        )
+    response = JsonResponse(
+        {
+            "assignment_id": str(assignment.assignment_id),
+            "expires_at": expires_at.isoformat(),
+            "unavailable_roles": unavailable_roles,
+            "variants": available,
+        }
+    )
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @require_GET

@@ -9,11 +9,13 @@ from django.db import DatabaseError, IntegrityError, transaction
 from django.utils import timezone
 from identity.models import User
 from media.models import Asset, MediaImportPreview, MediaVariant
-from work.models import Task, TaskMediaVariant
+from work.models import Assignment, Task, TaskMediaVariant
 from work.services import (
+    assign_task,
     cancel_task,
     create_manual_annotation_round,
     create_task_draft,
+    create_work_batch,
     publish_task,
     supersede_task,
     tombstone_task,
@@ -288,6 +290,64 @@ def test_pap_tba_sc_004_published_tasks_can_be_cancelled_or_superseded_without_r
     assert superseded.replacement_task_id == replacement.task_id
     assert superseded.terminal_reason == "new annotation contract"
     assert superseded.asset_id == original.asset_id
+
+
+def test_task_4_5_stale_task_instance_cannot_create_assignment_after_cancellation() -> None:
+    task = published_manual_task("stale-assignment")
+    batch = create_work_batch(name="Stale assignment batch")
+    assigned_worker = User.objects.create_user(
+        username="stale-assignment-worker",
+        role=User.Role.WORKER,
+        must_change_password=False,
+    )
+    cancel_task(task_id=task.task_id, reason="contract withdrawn")
+
+    with pytest.raises(ValidationError) as rejected:
+        assign_task(batch=batch, task=task, worker=assigned_worker)
+
+    assert rejected.value.code == "assignment_task_unavailable"
+    assert not Assignment.objects.filter(task=task, worker=assigned_worker).exists()
+
+
+def test_pap_tba_sc_004_task_termination_revokes_unfinished_assignments() -> None:
+    cancelled_task = published_manual_task("cancel-assignment")
+    superseded_task = published_manual_task("supersede-assignment")
+    replacement_task = published_manual_task("assignment-replacement")
+    batch = create_work_batch(name="Terminated assignment batch")
+    workers = [
+        User.objects.create_user(
+            username=f"terminated-assignment-worker-{index}",
+            role=User.Role.WORKER,
+            must_change_password=False,
+        )
+        for index in range(2)
+    ]
+    cancelled_assignment = assign_task(
+        batch=batch,
+        task=cancelled_task,
+        worker=workers[0],
+    )
+    superseded_assignment = assign_task(
+        batch=batch,
+        task=superseded_task,
+        worker=workers[1],
+    )
+    superseded_assignment.work_state = Assignment.WorkState.IN_PROGRESS
+    superseded_assignment.save(update_fields=["updated_at", "work_state"])
+
+    cancel_task(task_id=cancelled_task.task_id, reason="contract withdrawn")
+    supersede_task(
+        task_id=superseded_task.task_id,
+        replacement_task_id=replacement_task.task_id,
+        reason="replacement contract",
+    )
+
+    cancelled_assignment.refresh_from_db()
+    superseded_assignment.refresh_from_db()
+    assert cancelled_assignment.work_state == Assignment.WorkState.REVOKED
+    assert superseded_assignment.work_state == Assignment.WorkState.REVOKED
+    assert cancelled_assignment.review_state == Assignment.ReviewState.UNREVIEWED
+    assert superseded_assignment.review_state == Assignment.ReviewState.UNREVIEWED
 
 
 def test_pap_tba_sc_005_external_key_is_not_the_platform_task_id() -> None:

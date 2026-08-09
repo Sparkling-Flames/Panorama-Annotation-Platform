@@ -1169,16 +1169,22 @@
               "test_ids": [
                 "PAP-MID-SC-008"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_worker_media_api.py",
+                "e2e/tests/media-delivery.spec.ts"
+              ]
             },
             {
               "title": "签名地址过期",
               "test_ids": [
                 "PAP-MID-SC-009"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_worker_media_api.py",
+                "frontend/src/media/AssignmentMedia.test.tsx"
+              ]
             }
           ]
         },
@@ -1199,8 +1205,11 @@
               "test_ids": [
                 "PAP-MID-SC-011"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_worker_media_api.py",
+                "frontend/src/media/AssignmentMedia.test.tsx"
+              ]
             },
             {
               "title": "所有变体不可用",
@@ -1238,8 +1247,10 @@
               "test_ids": [
                 "PAP-MID-SC-014"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_worker_media_api.py"
+              ]
             }
           ]
         }
@@ -1706,8 +1717,10 @@
               "test_ids": [
                 "PAP-TBA-SC-004"
               ],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_task_lifecycle.py"
+              ]
             }
           ]
         },

@@ -52,7 +52,14 @@ COS_REGION = os.environ.get("COS_REGION", "")
 COS_SECRET_ID = os.environ.get("COS_SECRET_ID", "")
 COS_SECRET_KEY = os.environ.get("COS_SECRET_KEY", "")
 COS_SESSION_TOKEN = os.environ.get("COS_SESSION_TOKEN", "")
-COS_ADMIN_PREVIEW_URL_SECONDS = int(os.environ.get("COS_ADMIN_PREVIEW_URL_SECONDS", "300"))
+COS_SIGNED_URL_SECONDS = int(
+    os.environ.get(
+        "COS_SIGNED_URL_SECONDS",
+        os.environ.get("COS_ADMIN_PREVIEW_URL_SECONDS", "300"),
+    )
+)
+if not 1 <= COS_SIGNED_URL_SECONDS <= 300:
+    raise ImproperlyConfigured("COS_SIGNED_URL_SECONDS must be between 1 and 300")
 
 USE_TZ = True
 TIME_ZONE = "UTC"

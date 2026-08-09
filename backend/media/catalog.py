@@ -65,7 +65,7 @@ class TencentCosCatalog:
         return cls(
             client=client,
             bucket=bucket,
-            preview_url_seconds=settings.COS_ADMIN_PREVIEW_URL_SECONDS,
+            preview_url_seconds=settings.COS_SIGNED_URL_SECONDS,
         )
 
     def list_candidates(self, *, prefix: str, marker: str | None) -> MediaCatalogPage:

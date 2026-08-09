@@ -30,7 +30,14 @@ def create_work_batch(*, name: str) -> WorkBatch:
     return WorkBatch.objects.create(name=clean_name)
 
 
+@transaction.atomic
 def assign_task(*, batch: WorkBatch, task: Task, worker: User) -> Assignment:
+    batch = WorkBatch.objects.select_for_update().get(batch_id=batch.batch_id)
+    if batch.status != WorkBatch.Status.OPEN:
+        raise ValidationError("The batch is not open.", code="assignment_batch_unavailable")
+    task = Task.objects.select_for_update().get(task_id=task.task_id)
+    if task.status != Task.Status.PUBLISHED:
+        raise ValidationError("The task is not published.", code="assignment_task_unavailable")
     assignment = Assignment(batch=batch, task=task, worker=worker)
     assignment.save()
     return assignment
@@ -56,15 +63,19 @@ def get_owned_assignment(*, actor: User, assignment_id: UUID) -> Assignment:
     )
 
 
-def _lock_owned_assignment(*, actor: User, assignment_id: UUID) -> Assignment:
+def _lock_owned_writable_assignment(*, actor: User, assignment_id: UUID) -> Assignment:
     assignment = (
-        Assignment.objects.select_for_update()
+        Assignment.objects.select_for_update(of=("self",))
         .select_related("batch", "task", "worker")
         .filter(assignment_id=assignment_id, worker=actor)
         .first()
     )
     if assignment is None:
         raise ResourceNotFound
+    if assignment.batch.status != WorkBatch.Status.OPEN:
+        raise ValidationError("The batch is not open.", code="batch_not_open")
+    if assignment.task.status != Task.Status.PUBLISHED:
+        raise ValidationError("The task is not published.", code="assignment_task_unavailable")
     return assignment
 
 
@@ -83,9 +94,7 @@ def open_owned_assignment(
         session_token=session_token,
         tab_id=tab_id,
     )
-    assignment = _lock_owned_assignment(actor=actor, assignment_id=assignment_id)
-    if assignment.batch.status != WorkBatch.Status.OPEN:
-        raise ValidationError("The batch is not open.", code="batch_not_open")
+    assignment = _lock_owned_writable_assignment(actor=actor, assignment_id=assignment_id)
     if assignment.work_state == Assignment.WorkState.ASSIGNED:
         assignment.work_state = Assignment.WorkState.IN_PROGRESS
         assignment.save(update_fields=["updated_at", "work_state"])
@@ -112,9 +121,7 @@ def set_owned_assignment_queue_state(
         session_token=session_token,
         tab_id=tab_id,
     )
-    assignment = _lock_owned_assignment(actor=actor, assignment_id=assignment_id)
-    if assignment.batch.status != WorkBatch.Status.OPEN:
-        raise ValidationError("The batch is not open.", code="batch_not_open")
+    assignment = _lock_owned_writable_assignment(actor=actor, assignment_id=assignment_id)
     if assignment.work_state == Assignment.WorkState.REVOKED:
         raise ValidationError("The assignment is revoked.", code="assignment_revoked")
     if assignment.queue_state != queue_state:
@@ -230,6 +237,7 @@ def cancel_task(*, task_id: UUID, reason: str) -> Task:
     task.terminal_reason = clean_reason
     task.cancelled_at = timezone.now()
     task.save(update_fields=["cancelled_at", "status", "terminal_reason"])
+    _revoke_unfinished_assignments(task=task)
     return task
 
 
@@ -263,7 +271,18 @@ def supersede_task(*, task_id: UUID, replacement_task_id: UUID, reason: str) -> 
     task.replacement_task = replacement
     task.terminal_reason = clean_reason
     task.save(update_fields=["replacement_task", "status", "terminal_reason"])
+    _revoke_unfinished_assignments(task=task)
     return task
+
+
+def _revoke_unfinished_assignments(*, task: Task) -> None:
+    Assignment.objects.filter(
+        task=task,
+        work_state__in=(
+            Assignment.WorkState.ASSIGNED,
+            Assignment.WorkState.IN_PROGRESS,
+        ),
+    ).update(work_state=Assignment.WorkState.REVOKED, updated_at=timezone.now())
 
 
 @transaction.atomic

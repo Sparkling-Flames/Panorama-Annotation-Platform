@@ -12,9 +12,11 @@ from media.models import Asset, MediaVariant
 from work.models import Assignment, Task
 from work.services import (
     assign_task,
+    cancel_task,
     create_task_draft,
     create_work_batch,
     publish_task,
+    supersede_task,
 )
 
 pytestmark = pytest.mark.django_db
@@ -247,3 +249,139 @@ def test_administrator_creates_a_real_batch_assignment_contract() -> None:
     assert assignment.batch_id == UUID(batch_id)
     assert assignment.task == task
     assert assignment.worker == assigned_worker
+
+
+def test_task_4_5_open_changes_work_state_without_touching_review_state() -> None:
+    assigned_worker = worker("independent-state-worker")
+    batch = create_work_batch(name="Independent state batch")
+    assignment = assign_task(
+        batch=batch,
+        task=published_task("independent-state"),
+        worker=assigned_worker,
+    )
+    client = logged_in(assigned_worker)
+    tab_id = str(uuid4())
+    acquire_workspace(client, tab_id=tab_id)
+
+    first_open = post_json(
+        client,
+        f"/api/worker/assignments/{assignment.assignment_id}/open",
+        {"tab_id": tab_id},
+    )
+    retry = post_json(
+        client,
+        f"/api/worker/assignments/{assignment.assignment_id}/open",
+        {"tab_id": tab_id},
+    )
+
+    assert first_open.status_code == retry.status_code == 200
+    assignment.refresh_from_db()
+    assert assignment.work_state == Assignment.WorkState.IN_PROGRESS
+    assert assignment.review_state == Assignment.ReviewState.UNREVIEWED
+
+
+def test_task_4_5_same_task_isolated_per_worker_and_duplicate_exposure_conflicts() -> None:
+    administrator = User.objects.create_user(
+        username="independent-workers-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    first_worker = worker("independent-worker-one")
+    second_worker = worker("independent-worker-two")
+    task = published_task("independent-workers")
+    first_batch = create_work_batch(name="Independent workers batch")
+    second_batch = create_work_batch(name="Duplicate exposure batch")
+    admin_client = logged_in(administrator)
+
+    first_response = post_json(
+        admin_client,
+        f"/api/admin/work-batches/{first_batch.batch_id}/assignments",
+        {"task_id": str(task.task_id), "worker_id": str(first_worker.worker_id)},
+    )
+    second_response = post_json(
+        admin_client,
+        f"/api/admin/work-batches/{first_batch.batch_id}/assignments",
+        {"task_id": str(task.task_id), "worker_id": str(second_worker.worker_id)},
+    )
+    duplicate_response = post_json(
+        admin_client,
+        f"/api/admin/work-batches/{second_batch.batch_id}/assignments",
+        {"task_id": str(task.task_id), "worker_id": str(first_worker.worker_id)},
+    )
+
+    assert first_response.status_code == second_response.status_code == 201
+    assert first_response.json()["assignment_id"] != second_response.json()["assignment_id"]
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json() == {"error": {"code": "assignment_conflict"}}
+    assert Assignment.objects.filter(task=task).count() == 2
+
+    first_list = logged_in(first_worker).get(
+        f"/api/worker/batches/{first_batch.batch_id}/assignments"
+    )
+    second_list = logged_in(second_worker).get(
+        f"/api/worker/batches/{first_batch.batch_id}/assignments"
+    )
+    assert first_list.status_code == second_list.status_code == 200
+    assert [item["assignment_id"] for item in first_list.json()["assignments"]] == [
+        first_response.json()["assignment_id"]
+    ]
+    assert [item["assignment_id"] for item in second_list.json()["assignments"]] == [
+        second_response.json()["assignment_id"]
+    ]
+
+
+def test_task_4_6_terminal_tasks_reject_worker_writes() -> None:
+    assigned_worker = worker("terminal-task-worker")
+    batch = create_work_batch(name="Terminal task batch")
+    cancelled_task = published_task("terminal-cancelled")
+    superseded_task = published_task("terminal-superseded")
+    replacement_task = published_task("terminal-replacement")
+    cancelled_assignment = assign_task(
+        batch=batch,
+        task=cancelled_task,
+        worker=assigned_worker,
+    )
+    superseded_assignment = assign_task(
+        batch=batch,
+        task=superseded_task,
+        worker=assigned_worker,
+    )
+    client = logged_in(assigned_worker)
+    tab_id = str(uuid4())
+    acquire_workspace(client, tab_id=tab_id)
+    assert (
+        post_json(
+            client,
+            f"/api/worker/assignments/{superseded_assignment.assignment_id}/open",
+            {"tab_id": tab_id},
+        ).status_code
+        == 200
+    )
+
+    cancel_task(task_id=cancelled_task.task_id, reason="contract withdrawn")
+    supersede_task(
+        task_id=superseded_task.task_id,
+        replacement_task_id=replacement_task.task_id,
+        reason="replacement contract",
+    )
+    rejected_open = post_json(
+        client,
+        f"/api/worker/assignments/{cancelled_assignment.assignment_id}/open",
+        {"tab_id": tab_id},
+    )
+    rejected_queue_change = post_json(
+        client,
+        f"/api/worker/assignments/{superseded_assignment.assignment_id}/queue-state",
+        {"queue_state": "deferred", "tab_id": tab_id},
+    )
+
+    assert rejected_open.status_code == rejected_queue_change.status_code == 409
+    assert rejected_open.json() == rejected_queue_change.json() == {
+        "error": {"code": "assignment_task_unavailable"}
+    }
+    cancelled_assignment.refresh_from_db()
+    superseded_assignment.refresh_from_db()
+    assert cancelled_assignment.work_state == Assignment.WorkState.REVOKED
+    assert superseded_assignment.work_state == Assignment.WorkState.REVOKED
+    assert cancelled_assignment.queue_state == Assignment.QueueState.READY
+    assert superseded_assignment.queue_state == Assignment.QueueState.READY
