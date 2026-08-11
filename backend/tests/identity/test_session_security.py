@@ -110,6 +110,15 @@ def test_password_change_and_account_disable_revoke_existing_worker_sessions() -
         current_password=worker["temporary_password"],
         new_password=INITIAL_WORKER_PASSWORD,
     )
+    notice = first_session.get("/api/privacy/notice").json()
+    assert (
+        first_session.post(
+            "/api/privacy/notice/accept",
+            data={"notice_version": notice["notice_version"]},
+            content_type="application/json",
+        ).status_code
+        == 201
+    )
 
     second_session = Client()
     assert login(
@@ -174,8 +183,17 @@ def test_pap_iam_sc_011_worker_responses_exclude_workspace_tokens_and_profile_ra
     )
     workspace_session = worker_client.get("/api/workspace/session")
     assert workspace_session.status_code == 200
-    assert workspace_session.json() == {"workspace_access": True}
+    assert workspace_session.json() == {"workspace_access": False}
     assert_without_profile_rankings(workspace_session.json())
+
+    notice = worker_client.get("/api/privacy/notice").json()
+    accepted = worker_client.post(
+        "/api/privacy/notice/accept",
+        data={"notice_version": notice["notice_version"]},
+        content_type="application/json",
+    )
+    assert accepted.status_code == 201
+    assert worker_client.get("/api/workspace/session").json() == {"workspace_access": True}
 
     acquire_response = worker_client.post(
         "/api/workspace/acquire",

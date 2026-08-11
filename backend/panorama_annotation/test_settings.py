@@ -4,6 +4,7 @@ from typing import Any
 from urllib.parse import quote
 
 _TEST_SIGNING_KEY = "django-insecure-panorama-test-only"
+os.environ["DJANGO_DEBUG"] = "true"
 os.environ["DJANGO_SECRET_KEY"] = _TEST_SIGNING_KEY
 
 from .settings import *  # noqa: E402,F403
@@ -12,6 +13,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.environ.get("PANORAMA_TEST_SQLITE_PATH", ":memory:"),
+        "OPTIONS": {"transaction_mode": "IMMEDIATE"},
     }
 }
 

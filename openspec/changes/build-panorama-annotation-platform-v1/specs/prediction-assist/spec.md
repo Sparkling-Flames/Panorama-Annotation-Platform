@@ -48,7 +48,7 @@ Semi Task 的 PredictionArtifact 缺失、哈希错误、坐标不兼容或无�
 - **THEN** 系统使候选失效并要求重新计算，不允许 Apply 到状态 B
 
 ### Requirement: 首版不向普通工人开放 A-line
-首版 SHALL 仅提供基础 Manhattan 诊断和 AssistArtifact/事件扩展边界；worker-facing A-line 必须保持关闭。未来启用时只允许注册、版本化、经过测试且由 feature policy 授权的引擎，并遵循 shadow、expert preview、熟练工人 pilot、普通生产的阶段门槛。
+Manual 在线 POC SHALL 不提供 Manhattan 诊断或 worker-facing A-line，只保留未来 AssistArtifact/事件的规范边界。未来启用时只允许注册、版本化、经过测试且由 feature policy 授权的引擎，并遵循 shadow、expert preview、熟练工人 pilot、普通生产的阶段门槛。
 
 #### Scenario: 普通工人请求 A-line 候选
 - **WHEN** 首版普通工人客户端尝试调用 A-line Assist

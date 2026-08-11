@@ -15,7 +15,7 @@ Assignment 的每个 DraftCycle SHALL 至多存在一个服务器端 CurrentDraf
 工人在首次提交前 SHALL 直接编辑初始 CurrentDraft；首次正式提交 MUST 以原子事务冻结 `Revision 1`，保存完整 canonical 状态、状态哈希、Assignment/Worker/Task 标识、版本和提交时间。提交成功后不得修改该 Revision。
 
 #### Scenario: 首次提交成功
-- **WHEN** 当前 Draft 通过服务器和预览提交门槛
+- **WHEN** 当前 Draft 通过服务器 canonical 与业务事务校验；信息性 POC wireframe 无论成功、失败或缺失都不构成提交门槛
 - **THEN** 系统创建不可变 Revision 1、关联初始 DraftCycle，并返回明确提交结果
 
 ### Requirement: 提交请求幂等
@@ -40,22 +40,30 @@ Assignment 的每个 DraftCycle SHALL 至多存在一个服务器端 CurrentDraf
 - **THEN** 系统恢复服务器确认的几何和元标签，但明确不承诺恢复原设备的全部 Undo/Redo 命令
 
 ### Requirement: 复核绑定具体 Revision
-每个 ReviewRecord MUST 指向一个不可变 Revision，并保存 reviewer、状态、原因、时间和规则版本。管理员不得以工人身份修改该 Revision；管理员直接修正几何时 MUST 创建独立、归因于管理员的 AdjudicatedRevision。
+每个 ReviewRecord MUST 指向一个不可变 Revision，并保存管理员 reviewer、`accepted | changes_requested` 结果、原因、时间和规则版本。ReviewRecord MUST 采用追加式不可变记录；管理员改判时创建引用上一记录的新 ReviewRecord，不得覆盖历史。`changes_requested` MUST 包含非空原因并把 Assignment 的当前复核投影设为 `changes_requested`、队列设为 `needs_revisit`，但完整 ReworkRequest、期限和 feedback exposure 仍由独立返工合同创建。管理员不得以工人身份修改 Revision；管理员直接修正 canonical 时 MUST 创建独立、归因于管理员的 AdjudicatedRevision，保存完整状态、状态哈希、原因、规则版本和全部来源 Revision。Task 级交付指针 MUST 显式且互斥地指向一个工人 Revision 或 AdjudicatedRevision；新工人 Revision 不得自动移动既有交付指针。首版 ReviewRecord 评价整份 Revision，分组件评价留给后续聚合合同。
+
+#### Scenario: 管理员接受或要求修改
+- **WHEN** 管理员对一份工人 Revision 提交 `accepted` 或带非空原因的 `changes_requested`
+- **THEN** 系统追加不可变 ReviewRecord；接受时投影为 accepted，要求修改时保留 submitted 事实并把 Assignment 置为 `needs_revisit`，且不修改旧 Revision
+
+#### Scenario: 管理员改判复核结果
+- **WHEN** 管理员需要纠正一份已有 ReviewRecord 的结果
+- **THEN** 系统创建引用被替代记录的新 ReviewRecord，以最新记录投影当前复核状态，并永久保留旧记录
 
 #### Scenario: 管理员裁决几何
 - **WHEN** 管理员需要把交付结果改为不同于任何工人 Revision 的几何
-- **THEN** 系统创建 AdjudicatedRevision、保留全部来源 Revision，并使交付指针明确指向裁决结果
+- **THEN** 系统创建归因于管理员的 AdjudicatedRevision、保留全部来源 Revision，并使 Task 级交付指针明确指向裁决结果
 
 #### Scenario: 工人提交新 Revision
 - **WHEN** 已复核 Assignment 出现新的工人 Revision
-- **THEN** 新 Revision 初始为 unreviewed，旧 ReviewRecord 继续只约束旧 Revision
+- **THEN** 新 Revision 初始为 unreviewed，旧 ReviewRecord 继续只约束旧 Revision，既有交付指针保持不变直到管理员重新选择
 
-### Requirement: OOS 误判支持选择性返工
-管理员把任务最终裁定为 in_scope 后 SHALL 能对曾提交 OOS 的工人创建可选 ReworkRequest。原 OOS Revision MUST 永久保留；返工只告知已裁定 in-scope 和必要文字指导，不得暴露其他工人的正式几何。
+### Requirement: Scope 观察被裁决后支持选择性返工
+管理员或冻结政策把 Task 最终裁定为 annotatable 后 SHALL 能对曾提交 `needs_scope_review` 或 `representation_oos` 的工人创建可选 ReworkRequest。原 Revision MUST 永久保留；返工只告知最终处置和必要文字指导，不得暴露其他工人的正式几何或 portal。
 
-#### Scenario: 工人完成 OOS 返工
-- **WHEN** 工人接受 ReworkRequest 并重新提交 in-scope 几何
-- **THEN** 系统创建新的 feedback-exposed Revision，分别记录返工时间和结果，且不删除初始 OOS 误判证据
+#### Scenario: 工人完成 Scope 返工
+- **WHEN** 工人接受 ReworkRequest 并重新提交 annotatable 几何
+- **THEN** 系统创建新的 feedback-exposed Revision，分别记录返工时间和结果，且不删除初始 scope observation evidence
 
 #### Scenario: 返工逾期
 - **WHEN** ReworkRequest 超过期限仍未提交
@@ -65,11 +73,11 @@ Assignment 的每个 DraftCycle SHALL 至多存在一个服务器端 CurrentDraf
 系统 MUST 保存 `initial_submission_revision`、`review_feedback_exposed_at`、feedback-exposed Revision 和最终 AdjudicatedRevision 的关系。用于独立共识和初始能力画像时，每名工人最多使用最新一份未暴露外部反馈的有效 Revision；反馈后返工只能进入返工表现和交付分析。
 
 #### Scenario: 返工结果与初始质量统计
-- **WHEN** 工人根据管理员 in-scope 提示完成质量很高的返工
-- **THEN** 系统可改善其返工表现指标，但不得回写抹去初始 OOS 判断或将返工作为独立初始质量证据
+- **WHEN** 工人根据管理员 annotatable 提示完成质量很高的返工
+- **THEN** 系统可改善其返工表现指标，但不得回写抹去初始 scope observation 或将返工作为独立初始质量证据
 
 ### Requirement: 只永久记录必要过程证据
-服务器 SHALL 永久保存提交、OOS、skip、Review、Adjudication、管理员操作、严重 Manhattan 警告确认、指导暴露以及未来 Assist Apply/Ignore/Undo 等必要事件；不得永久保存普通鼠标轨迹、每次点移动或键盘内容。
+服务器 SHALL 永久保存提交、scope/portal evidence、BlockReport 及管理员处置、Review、Adjudication、管理员操作、严重 Manhattan 警告确认、指导暴露以及未来 Assist Apply/Ignore/Undo 等必要事件；普通暂时跳过只需保存当前 `queue_state=deferred`，不得为每次重复点击建立终局 Skip 记录。系统不得永久保存普通鼠标轨迹、每次点移动或键盘内容。
 
 #### Scenario: 工人连续拖动角点
 - **WHEN** 工人在一次编辑动作中产生大量 pointer move

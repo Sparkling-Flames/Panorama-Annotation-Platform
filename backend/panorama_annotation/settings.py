@@ -1,17 +1,31 @@
 import os
 from pathlib import Path
+from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
-if not DEBUG and not os.environ.get("DJANGO_SECRET_KEY"):
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY is required when DJANGO_DEBUG is not true")
-SECRET_KEY = (
-    os.environ.get("DJANGO_SECRET_KEY") or "django-insecure-panorama-local-development-only"
+
+
+def deployment_value(name: str, development_default: str = "") -> str:
+    value = os.environ.get(name, "")
+    if value.strip() or DEBUG:
+        return value or development_default
+    raise ImproperlyConfigured(f"{name} is required when DJANGO_DEBUG is not true")
+
+
+SECRET_KEY = deployment_value(
+    "DJANGO_SECRET_KEY", "django-insecure-panorama-local-development-only"
 )
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in deployment_value("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    if host.strip()
+]
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must contain at least one host")
 
 ROOT_URLCONF = "panorama_annotation.urls"
 MIDDLEWARE = [
@@ -22,6 +36,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
 ]
 INSTALLED_APPS = [
+    "activity",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -47,10 +62,10 @@ CSRF_TRUSTED_ORIGINS = [
     origin for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin
 ]
 WORKSPACE_LEASE_SECONDS = 90
-COS_BUCKET = os.environ.get("COS_BUCKET", "")
-COS_REGION = os.environ.get("COS_REGION", "")
-COS_SECRET_ID = os.environ.get("COS_SECRET_ID", "")
-COS_SECRET_KEY = os.environ.get("COS_SECRET_KEY", "")
+COS_BUCKET = deployment_value("COS_BUCKET")
+COS_REGION = deployment_value("COS_REGION")
+COS_SECRET_ID = deployment_value("COS_SECRET_ID")
+COS_SECRET_KEY = deployment_value("COS_SECRET_KEY")
 COS_SESSION_TOKEN = os.environ.get("COS_SESSION_TOKEN", "")
 COS_SIGNED_URL_SECONDS = int(
     os.environ.get(
@@ -64,12 +79,12 @@ if not 1 <= COS_SIGNED_URL_SECONDS <= 300:
 USE_TZ = True
 TIME_ZONE = "UTC"
 
-DATABASES = {
+DATABASES: dict[str, dict[str, Any]] = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB", "panorama_annotation"),
         "USER": os.environ.get("POSTGRES_USER", "panorama_annotation"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
+        "PASSWORD": deployment_value("POSTGRES_PASSWORD"),
         "HOST": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }

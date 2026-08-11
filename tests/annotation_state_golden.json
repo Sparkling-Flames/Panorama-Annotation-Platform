@@ -1,6 +1,8 @@
 {
-  "canonical_json": "{\"pairs\":[{\"bottom\":{\"point_id\":\"00000000-0000-4000-8000-000000000004\",\"u\":0,\"v\":1},\"order_index\":0,\"pair_id\":\"00000000-0000-4000-8000-000000000001\",\"top\":{\"point_id\":\"00000000-0000-4000-8000-000000000003\",\"u\":1e-7,\"v\":0.000001}}],\"seam_anchor_pair_id\":\"00000000-0000-4000-8000-000000000001\"}",
+  "canonical_json": "{\"geometry_attempt_reason_text\":\"\",\"geometry_attempt_status\":\"partial\",\"pairs\":[{\"bottom\":{\"point_id\":\"00000000-0000-4000-8000-000000000004\",\"u\":0,\"v\":1},\"order_index\":0,\"pair_id\":\"00000000-0000-4000-8000-000000000001\",\"top\":{\"point_id\":\"00000000-0000-4000-8000-000000000003\",\"u\":1e-7,\"v\":0.000001}}],\"portals\":[{\"evidence_status\":\"ambiguous\",\"geometry\":{\"bottom_left\":{\"u\":0.98,\"v\":0.8},\"bottom_right\":{\"u\":0.02,\"v\":0.8},\"top_left\":{\"u\":0.98,\"v\":0.3},\"top_right\":{\"u\":0.02,\"v\":0.3}},\"host_edge_ref\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"architectural_opening\",\"portal_id\":\"00000000-0000-4000-8000-000000000007\"}],\"seam_anchor_pair_id\":\"00000000-0000-4000-8000-000000000001\",\"scope_reason_codes\":[\"portal_ambiguous\",\"insufficient_evidence\"],\"scope_reason_text\":\"\",\"worker_scope_observation\":\"needs_scope_review\"}",
   "state": {
+    "geometry_attempt_reason_text": "",
+    "geometry_attempt_status": "partial",
     "pairs": [
       {
         "bottom": {
@@ -17,7 +19,24 @@
         }
       }
     ],
-    "seam_anchor_pair_id": "00000000-0000-4000-8000-000000000001"
+    "portals": [
+      {
+        "evidence_status": "ambiguous",
+        "geometry": {
+          "bottom_left": { "u": 0.98, "v": 0.8 },
+          "bottom_right": { "u": 0.02, "v": 0.8 },
+          "top_left": { "u": 0.98, "v": 0.3 },
+          "top_right": { "u": 0.02, "v": 0.3 }
+        },
+        "host_edge_ref": "00000000-0000-4000-8000-000000000001",
+        "kind": "architectural_opening",
+        "portal_id": "00000000-0000-4000-8000-000000000007"
+      }
+    ],
+    "seam_anchor_pair_id": "00000000-0000-4000-8000-000000000001",
+    "scope_reason_codes": ["insufficient_evidence", "portal_ambiguous"],
+    "scope_reason_text": "",
+    "worker_scope_observation": "needs_scope_review"
   },
-  "state_sha": "0b136f7304a244a931d9ce8d1eefe3fa543842db5afc767ecca56bd95d2320bd"
+  "state_sha": "d48bcb2b03aa24e0b6b8bbdf03b523850fa6690702b679200f940edf10108265"
 }

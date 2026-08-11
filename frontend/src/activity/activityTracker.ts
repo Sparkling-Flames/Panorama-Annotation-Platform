@@ -1,6 +1,6 @@
 export const IDLE_THRESHOLD_MS = 15_000;
 export const HEARTBEAT_INTERVAL_MS = 30_000;
-export const ACTIVE_TIME_RULE_VERSION = "v1";
+export const ACTIVE_TIME_RULE_VERSION = "active-time-v1";
 
 export type ActivityVisibility = "hidden" | "visible";
 
@@ -18,6 +18,7 @@ export type AllowedInteractionType = (typeof ALLOWED_INTERACTION_TYPES)[number];
 export type ActivityEventType = "focus" | "heartbeat" | "idle" | "interaction" | "visibility";
 
 export type ActivityContext = Readonly<{
+  active_time_rule_version: string;
   assignment_id: string;
   client_build_sha: string;
   client_session_id: string;
@@ -28,8 +29,9 @@ export type ActivityContext = Readonly<{
 export type ClientActivityEvent = Readonly<
   ActivityContext & {
     active_lease_id: string | null;
-    active_time_rule_version: typeof ACTIVE_TIME_RULE_VERSION;
+    active_time_rule_version: string;
     client_monotonic_ms: number;
+    client_wall_time_ms: number;
     event_id: string;
     event_type: ActivityEventType;
     focus: boolean;
@@ -114,8 +116,9 @@ export class ActivityTracker {
       Object.freeze({
         ...this.context,
         active_lease_id: this.activeLeaseId,
-        active_time_rule_version: ACTIVE_TIME_RULE_VERSION,
+        active_time_rule_version: this.context.active_time_rule_version,
         client_monotonic_ms: performance.now(),
+        client_wall_time_ms: Date.now(),
         event_id: crypto.randomUUID(),
         event_type: eventType,
         focus: this.focus,

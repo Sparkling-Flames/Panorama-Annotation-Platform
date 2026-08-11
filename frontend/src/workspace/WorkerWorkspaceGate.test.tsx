@@ -202,7 +202,7 @@ describe("WorkerWorkspaceGate", () => {
     });
   });
 
-  it("leaves editable state when a lease renewal loses the network", async () => {
+  it("keeps the loaded workspace mounted in offline mode when renewal loses the network", async () => {
     vi.useFakeTimers();
     const lockManager = new FakeWorkspaceLockManager();
     vi.stubGlobal("navigator", { locks: lockManager });
@@ -232,8 +232,47 @@ describe("WorkerWorkspaceGate", () => {
     });
 
     expect(screen.queryByText("工作区可编辑。")).not.toBeInTheDocument();
-    expect(screen.queryByText("编辑器已挂载")).not.toBeInTheDocument();
-    expect(screen.getByText("网络中断，工作区不可编辑。")).toBeInTheDocument();
+    expect(screen.getByText("编辑器已挂载")).toBeInTheDocument();
+    expect(screen.getByText("离线")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("PAP-AOF-SC-009 keeps a read-only recovery copy mounted after the lease is lost", async () => {
+    vi.useFakeTimers();
+    const lockManager = new FakeWorkspaceLockManager();
+    vi.stubGlobal("navigator", { locks: lockManager });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { lease_expires_at: "2026-07-30T12:00:00Z", workspace_state: "editable" },
+            201,
+          ),
+        )
+        .mockResolvedValueOnce(jsonResponse({ error: { code: "workspace_lease_lost" } }, 409)),
+    );
+
+    render(
+      <WorkerWorkspaceGate>
+        {({ writable }) => <button disabled={!writable}>本地恢复内容</button>}
+      </WorkerWorkspaceGate>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("工作区可编辑。")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
+    });
+
+    expect(screen.getByText("工作区已失效，已保留本地恢复副本。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "本地恢复内容" })).toBeDisabled();
+
+    fireEvent(window, new Event("offline"));
+    expect(screen.getByText("工作区已失效，已保留本地恢复副本。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "本地恢复内容" })).toBeDisabled();
   });
 });

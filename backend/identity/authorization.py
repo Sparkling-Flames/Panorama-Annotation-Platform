@@ -12,7 +12,6 @@ from .services import record_account_audit
 class ResourceKind(StrEnum):
     ASSIGNMENT = "assignment"
     REVISION = "revision"
-    MEDIA = "media"
 
 
 class OwnedResource(Protocol):

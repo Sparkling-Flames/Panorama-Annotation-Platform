@@ -4,11 +4,11 @@ import { apiFetch } from "../api";
 import { WorkspaceTabCoordinator } from "./workspaceTabCoordinator";
 
 type WorkspaceState =
-  "acquiring" | "editable" | "error" | "local_conflict" | "offline" | "takeover_required";
+  "acquiring" | "editable" | "error" | "local_conflict" | "lost" | "offline" | "takeover_required";
 
 const RENEW_INTERVAL_MS = 45_000;
 
-type WorkspaceRenderContext = { tabId: string };
+type WorkspaceRenderContext = { online: boolean; tabId: string; writable: boolean };
 
 export function WorkerWorkspaceGate({
   children,
@@ -23,6 +23,8 @@ export function WorkerWorkspaceGate({
   const renewalRequest = useRef<AbortController | null>(null);
   const renewTimer = useRef<number | undefined>(undefined);
   const clientInstanceId = useRef(crypto.randomUUID());
+  const hasEditableWorkspace = useRef(false);
+  const leaseLost = useRef(false);
   const tabId = useRef(crypto.randomUUID());
 
   function stopRenewal(): void {
@@ -67,12 +69,24 @@ export function WorkerWorkspaceGate({
         method: "POST",
         signal: controller.signal,
       });
-      if (isCurrent(attemptId) && !response.ok) {
-        leaveWorkspace(attemptId, "error");
+      if (!isCurrent(attemptId)) return;
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: { code?: string } };
+        if (payload.error?.code === "workspace_lease_lost") {
+          leaseLost.current = true;
+          stopRenewal();
+          setState("lost");
+        } else {
+          leaveWorkspace(attemptId, "error");
+        }
+      } else {
+        setState("editable");
+        startRenewal(attemptId);
       }
     } catch {
       if (isCurrent(attemptId) && !controller.signal.aborted) {
-        leaveWorkspace(attemptId, "offline");
+        stopRenewal();
+        setState(hasEditableWorkspace.current ? "offline" : "error");
       }
     } finally {
       if (renewalRequest.current === controller) {
@@ -113,6 +127,8 @@ export function WorkerWorkspaceGate({
         return;
       }
       if (response.ok) {
+        hasEditableWorkspace.current = true;
+        leaseLost.current = false;
         setState("editable");
         startRenewal(attemptId);
         return;
@@ -179,9 +195,24 @@ export function WorkerWorkspaceGate({
 
     const currentCoordinator = coordinator.current ?? new WorkspaceTabCoordinator();
     coordinator.current = currentCoordinator;
+    const offline = () => {
+      if (mounted.current && hasEditableWorkspace.current && !leaseLost.current) {
+        stopRenewal();
+        setState("offline");
+      }
+    };
+    const online = () => {
+      if (mounted.current && hasEditableWorkspace.current && !leaseLost.current) {
+        void renewWorkspace(attempt.current);
+      }
+    };
+    window.addEventListener("offline", offline);
+    window.addEventListener("online", online);
     void acquireLocalWorkspace();
 
     return () => {
+      window.removeEventListener("offline", offline);
+      window.removeEventListener("online", online);
       mounted.current = false;
       beginAttempt();
       currentCoordinator.release();
@@ -191,10 +222,22 @@ export function WorkerWorkspaceGate({
   return (
     <section aria-label="工人工作区">
       {state === "acquiring" ? <p>正在取得工作区租约…</p> : null}
-      {state === "editable" ? (
+      {state === "editable" || state === "offline" || state === "lost" ? (
         <>
-          <p>工作区可编辑。</p>
-          {typeof children === "function" ? children({ tabId: tabId.current }) : children}
+          <p>
+            {state === "editable"
+              ? "工作区可编辑。"
+              : state === "offline"
+                ? "离线"
+                : "工作区已失效，已保留本地恢复副本。"}
+          </p>
+          {typeof children === "function"
+            ? children({
+                online: state === "editable",
+                tabId: tabId.current,
+                writable: state !== "lost",
+              })
+            : children}
         </>
       ) : null}
       {state === "local_conflict" ? (
@@ -214,14 +257,6 @@ export function WorkerWorkspaceGate({
         </div>
       ) : null}
       {state === "error" ? <p>无法取得或续租工作区，当前页面不可编辑。</p> : null}
-      {state === "offline" ? (
-        <div>
-          <p>网络中断，工作区不可编辑。</p>
-          <button onClick={() => void acquireLocalWorkspace()} type="button">
-            恢复后重试
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }

@@ -22,7 +22,7 @@ def create_user(*, username: str, role: str) -> User:
     )
 
 
-@pytest.mark.parametrize("resource_kind", ["assignment", "revision", "media"])
+@pytest.mark.parametrize("resource_kind", ["assignment", "revision"])
 def test_authorization_primitive_resolves_only_owned_resources_without_existence_leak(
     resource_kind: str,
 ) -> None:
@@ -60,7 +60,7 @@ def test_authorization_primitive_resolves_only_owned_resources_without_existence
     assert foreign_resource.resource_id not in str(foreign_denial.value)
 
 
-@pytest.mark.parametrize("resource_kind", ["assignment", "revision", "media"])
+@pytest.mark.parametrize("resource_kind", ["assignment", "revision"])
 def test_authorization_primitive_audits_admin_sensitive_reads(
     resource_kind: str,
 ) -> None:

@@ -12,7 +12,7 @@
 - **THEN** 客户端立即发送或排队状态事件，服务器不把不可见间隔计为 active time
 
 ### Requirement: 服务器从事件区间推导时间
-客户端 MUST 上报不可变且可幂等重放的 ActivityEvent，而不得提交可信的累计秒数。事件至少包含 `event_id`、assignment_id、draft_cycle_id、client_session_id、active_lease_id、sequence_no、event_type、client_monotonic_ms、server_received_at、visibility、focus、interaction_type、client_build_sha 和 active_time_rule_version。服务器 SHALL 去重、排序并对超长间隔、休眠、时钟异常和多工作区封顶。
+客户端 MUST 上报不可变且可幂等重放的 ActivityEvent，而不得提交可信的累计秒数。事件至少包含 `event_id`、assignment_id、draft_cycle_id、client_session_id、active_lease_id、sequence_no、event_type、client_monotonic_ms、client_wall_time_ms、server_received_at、visibility、focus、interaction_type、client_build_sha 和 active_time_rule_version。`client_monotonic_ms` 用于单 session 排序，`client_wall_time_ms` 仅用于把不同 session 的封顶区间对齐；服务器 SHALL 先按冻结规则把有效活动派生为最长 15 秒的区间，再按 DraftCycle 对全部 session 区间求并集。墙钟非有限、倒退或与接收时间明显异常时必须记录原因并保守少算，不得因异常增加时间。每个 Task MUST 在发布前冻结 active_time_rule_version；首版只支持 `active-time-v1`，未来规则只能通过新版本和新 Task 生效，旧 Task/事件不得被新算法重算。
 
 #### Scenario: 重复重放事件
 - **WHEN** 网络重试使相同 event_id 被上传多次
@@ -22,11 +22,19 @@
 - **WHEN** 两个 heartbeat 的单调时钟间隔异常长
 - **THEN** 服务器依据规则封顶或切断 interval，并记录可审计的派生原因
 
+#### Scenario: 多个客户端 session 的活动区间重叠
+- **WHEN** 同一 DraftCycle 的两个客户端 session 产生墙钟区间重叠的有效活动事件
+- **THEN** 服务器对区间求并集且重叠部分只计一次，不把两个 session 的时长直接相加
+
+#### Scenario: 旧 Task 在新规则发布后重算
+- **WHEN** 平台未来支持新的 active time 规则版本并重新读取一个冻结为 `active-time-v1` 的旧 Task
+- **THEN** 系统仍按 `active-time-v1` 派生旧 Task 的活动时间，不使用新规则解释旧事件
+
 ### Requirement: 允许的活动类型明确
-2D 编辑、角点顺序调整、Undo/Redo、元标签填写、用于判断图片的 zoom/pan 和主动 3D 检查 SHALL 计为允许交互。系统不得通过鼠标微动、后台心跳或自动 3D 重建本身人为延长 active time。
+2D 编辑、角点顺序调整、Undo/Redo、元标签填写、用于判断图片的 zoom/pan 和主动只读预览检查 SHALL 计为允许交互。系统不得通过鼠标微动、后台心跳或自动预览重建本身人为延长 active time。
 
 #### Scenario: 工人检查 3D
-- **WHEN** 工人在可见且聚焦页面主动旋转或缩放只读 3D 进行检查
+- **WHEN** 工人在可见且聚焦页面主动检查 POC wireframe，或在未来正式 3D authority 启用后旋转/缩放只读 3D
 - **THEN** 该检查可恢复活动租约并计入对应 DraftCycle
 
 ### Requirement: 时间按 Assignment 与 DraftCycle 归属

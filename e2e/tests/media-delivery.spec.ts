@@ -1,38 +1,13 @@
 import process from "node:process";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
+import { loginViaApi as login, postJson } from "./api-helpers";
 
 const ADMIN_PASSWORD = process.env.PANORAMA_E2E_ADMIN_PASSWORD;
 const COS_ORIGIN = process.env.PANORAMA_E2E_COS_ORIGIN;
 const WORKER_PASSWORD = process.env.PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD;
 const WORKER_ID = "00000000-0000-4000-8000-000000000008";
-
-async function postJson(page: Page, endpoint: string, body: object) {
-  return page.evaluate(
-    async ({ endpoint: requestEndpoint, payload }) => {
-      const csrfToken = document.cookie
-        .split("; ")
-        .find((cookie) => cookie.startsWith("csrftoken="))
-        ?.slice("csrftoken=".length);
-      const response = await fetch(requestEndpoint, {
-        body: JSON.stringify(payload),
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken ?? "" },
-        method: "POST",
-      });
-      return { body: await response.json(), status: response.status };
-    },
-    { endpoint, payload: body },
-  );
-}
-
-async function login(page: Page, username: string, password: string): Promise<void> {
-  await page.goto("/");
-  await page.evaluate(async () => {
-    await fetch("/api/auth/csrf", { credentials: "same-origin" });
-  });
-  expect((await postJson(page, "/api/auth/login", { password, username })).status).toBe(200);
-}
 
 test("PAP-MID-SC-008 PAP-MID-SC-010 delivers exact-version media from COS", async ({ browser }) => {
   if (ADMIN_PASSWORD === undefined || WORKER_PASSWORD === undefined || COS_ORIGIN === undefined) {

@@ -6,9 +6,7 @@
     {
       "capability": "activity-offline",
       "prefix": "AOF",
-      "implementation_task_sections": [
-        "8"
-      ],
+      "implementation_task_sections": ["8"],
       "requirements": [
         {
           "requirement_id": "PAP-AOF-REQ-001",
@@ -16,19 +14,15 @@
           "scenarios": [
             {
               "title": "页面保持打开但无人操作",
-              "test_ids": [
-                "PAP-AOF-SC-001"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-001"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/activity/activityTracker.test.ts"]
             },
             {
               "title": "工人切换到其他应用",
-              "test_ids": [
-                "PAP-AOF-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/activity/activityTracker.test.ts"]
             }
           ]
         },
@@ -38,19 +32,27 @@
           "scenarios": [
             {
               "title": "重复重放事件",
-              "test_ids": [
-                "PAP-AOF-SC-003"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-003"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_activity_api.py"]
             },
             {
               "title": "设备休眠后恢复",
-              "test_ids": [
-                "PAP-AOF-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-004"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_activity_api.py"]
+            },
+            {
+              "title": "多个客户端 session 的活动区间重叠",
+              "test_ids": ["PAP-AOF-SC-011"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_activity_api.py"]
+            },
+            {
+              "title": "旧 Task 在新规则发布后重算",
+              "test_ids": ["PAP-AOF-SC-012"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_activity_api.py"]
             }
           ]
         },
@@ -60,11 +62,9 @@
           "scenarios": [
             {
               "title": "工人检查 3D",
-              "test_ids": [
-                "PAP-AOF-SC-005"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-005"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/activity/activityTracker.test.ts"]
             }
           ]
         },
@@ -74,11 +74,9 @@
           "scenarios": [
             {
               "title": "提交后再次修订",
-              "test_ids": [
-                "PAP-AOF-SC-006"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-006"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_activity_api.py"]
             }
           ]
         },
@@ -88,19 +86,18 @@
           "scenarios": [
             {
               "title": "标注中途断网",
-              "test_ids": [
-                "PAP-AOF-SC-007"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-007"],
+              "coverage_status": "implemented",
+              "test_files": ["e2e/tests/assignment-switching.spec.ts"]
             },
             {
               "title": "重新联网且服务器基线未变",
-              "test_ids": [
-                "PAP-AOF-SC-008"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-008"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_activity_api.py",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
@@ -110,11 +107,12 @@
           "scenarios": [
             {
               "title": "另一设备已接管并修改草稿",
-              "test_ids": [
-                "PAP-AOF-SC-009"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-009"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx",
+                "frontend/src/workspace/WorkerWorkspaceGate.test.tsx"
+              ]
             }
           ]
         },
@@ -124,11 +122,9 @@
           "scenarios": [
             {
               "title": "工人用时异常短",
-              "test_ids": [
-                "PAP-AOF-SC-010"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AOF-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_activity_api.py"]
             }
           ]
         }
@@ -137,10 +133,7 @@
     {
       "capability": "adaptive-consensus-routing",
       "prefix": "ACR",
-      "implementation_task_sections": [
-        "10",
-        "11"
-      ],
+      "implementation_task_sections": ["10", "11"],
       "requirements": [
         {
           "requirement_id": "PAP-ACR-REQ-001",
@@ -148,47 +141,55 @@
           "scenarios": [
             {
               "title": "分析服务暂时失败",
-              "test_ids": [
-                "PAP-ACR-SC-001"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-ACR-SC-001"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
             },
             {
               "title": "相同分析任务重试",
-              "test_ids": [
-                "PAP-ACR-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-ACR-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
             }
           ]
         },
         {
-          "requirement_id": "PAP-ACR-REQ-002",
-          "title": "共识先判断 scope 再判断 geometry",
+          "requirement_id": "PAP-ACR-REQ-013",
+          "title": "Scope observation 是证据而非多数真值",
           "scenarios": [
             {
-              "title": "scope 稳定为 in_scope",
-              "test_ids": [
-                "PAP-ACR-SC-003"
-              ],
+              "title": "representation_oos 证据满足自动处置政策",
+              "test_ids": ["PAP-ACR-SC-022"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
+            },
+            {
+              "title": "scope 与有效结构证据冲突",
+              "test_ids": ["PAP-ACR-SC-023"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_scope_aggregation.py"]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-014",
+          "title": "Scope、Portal、Geometry 与 Evidence 分组件聚合",
+          "scenarios": [
+            {
+              "title": "representation_oos Revision 含有效 portal",
+              "test_ids": ["PAP-ACR-SC-024"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
+            },
+            {
+              "title": "派生 enclosed target",
+              "test_ids": ["PAP-ACR-SC-025"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
-              "title": "scope 稳定为 oos",
-              "test_ids": [
-                "PAP-ACR-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
-            },
-            {
-              "title": "OOS 与有效几何冲突",
-              "test_ids": [
-                "PAP-ACR-SC-005"
-              ],
+              "title": "派生政策尚未启用",
+              "test_ids": ["PAP-ACR-SC-035"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -200,19 +201,15 @@
           "scenarios": [
             {
               "title": "初始三份标注已稳定",
-              "test_ids": [
-                "PAP-ACR-SC-006"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-ACR-SC-006"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
             },
             {
               "title": "达到上限仍多峰",
-              "test_ids": [
-                "PAP-ACR-SC-007"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-ACR-SC-007"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_consensus_aggregation.py"]
             }
           ]
         },
@@ -222,19 +219,33 @@
           "scenarios": [
             {
               "title": "唯一主簇稳定",
-              "test_ids": [
-                "PAP-ACR-SC-008"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-ACR-SC-008"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_analysis_jobs.py",
+                "backend/tests/test_consensus_aggregation.py"
+              ]
             },
             {
               "title": "管理员后来裁决",
-              "test_ids": [
-                "PAP-ACR-SC-009"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-ACR-SC-009"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
+            },
+            {
+              "title": "五份输入形成 3:2 多峰",
+              "test_ids": ["PAP-ACR-SC-033"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_consensus_aggregation.py"]
+            },
+            {
+              "title": "Geometry 与 Portal 的代表来源不同",
+              "test_ids": ["PAP-ACR-SC-034"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_analysis_jobs.py",
+                "backend/tests/test_consensus_aggregation.py"
+              ]
             }
           ]
         },
@@ -244,9 +255,61 @@
           "scenarios": [
             {
               "title": "工人在反馈前主动修订两次",
-              "test_ids": [
-                "PAP-ACR-SC-010"
-              ],
+              "test_ids": ["PAP-ACR-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-015",
+          "title": "PreScreen 与 Calibration 暴露可审计且不重复 Trap",
+          "scenarios": [
+            {
+              "title": "工人重复进入 PreScreen",
+              "test_ids": ["PAP-ACR-SC-026"],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "某能力组件支持不足",
+              "test_ids": ["PAP-ACR-SC-027"],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-016",
+          "title": "CalibrationPolicy 冻结停止、回退与探测规则",
+          "scenarios": [
+            {
+              "title": "校准已满足支持和不确定性目标",
+              "test_ids": ["PAP-ACR-SC-028"],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "达到 maximum blocks 仍证据不足",
+              "test_ids": ["PAP-ACR-SC-029"],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ACR-REQ-017",
+          "title": "Evidence tier 的升级来源受限",
+          "scenarios": [
+            {
+              "title": "只有模型一致 proxy",
+              "test_ids": ["PAP-ACR-SC-030"],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "独立 LOO 后升级",
+              "test_ids": ["PAP-ACR-SC-031"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -258,17 +321,13 @@
           "scenarios": [
             {
               "title": "第一名工人先提交",
-              "test_ids": [
-                "PAP-ACR-SC-011"
-              ],
+              "test_ids": ["PAP-ACR-SC-011"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "后续追加形成稳定共识",
-              "test_ids": [
-                "PAP-ACR-SC-012"
-              ],
+              "test_ids": ["PAP-ACR-SC-012"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -280,17 +339,19 @@
           "scenarios": [
             {
               "title": "工人与模型高度一致但无独立参考",
-              "test_ids": [
-                "PAP-ACR-SC-013"
-              ],
+              "test_ids": ["PAP-ACR-SC-013"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "新工人样本少",
-              "test_ids": [
-                "PAP-ACR-SC-014"
-              ],
+              "test_ids": ["PAP-ACR-SC-014"],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "新增画像组件",
+              "test_ids": ["PAP-ACR-SC-032"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -302,17 +363,13 @@
           "scenarios": [
             {
               "title": "困难高风险任务",
-              "test_ids": [
-                "PAP-ACR-SC-015"
-              ],
+              "test_ids": ["PAP-ACR-SC-015"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "稳定但能力较低的工人",
-              "test_ids": [
-                "PAP-ACR-SC-016"
-              ],
+              "test_ids": ["PAP-ACR-SC-016"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -324,17 +381,13 @@
           "scenarios": [
             {
               "title": "简单任务持续稳定",
-              "test_ids": [
-                "PAP-ACR-SC-017"
-              ],
+              "test_ids": ["PAP-ACR-SC-017"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "管理员关闭探索",
-              "test_ids": [
-                "PAP-ACR-SC-018"
-              ],
+              "test_ids": ["PAP-ACR-SC-018"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -346,9 +399,7 @@
           "scenarios": [
             {
               "title": "首版请求 adaptive_auto",
-              "test_ids": [
-                "PAP-ACR-SC-019"
-              ],
+              "test_ids": ["PAP-ACR-SC-019"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -360,9 +411,7 @@
           "scenarios": [
             {
               "title": "提交后画像改善",
-              "test_ids": [
-                "PAP-ACR-SC-020"
-              ],
+              "test_ids": ["PAP-ACR-SC-020"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -374,9 +423,7 @@
           "scenarios": [
             {
               "title": "审计一次辅助分配",
-              "test_ids": [
-                "PAP-ACR-SC-021"
-              ],
+              "test_ids": ["PAP-ACR-SC-021"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -387,9 +434,7 @@
     {
       "capability": "admin-audit-export",
       "prefix": "AAE",
-      "implementation_task_sections": [
-        "12"
-      ],
+      "implementation_task_sections": ["12"],
       "requirements": [
         {
           "requirement_id": "PAP-AAE-REQ-001",
@@ -397,11 +442,12 @@
           "scenarios": [
             {
               "title": "管理员打开运营页",
-              "test_ids": [
-                "PAP-AAE-SC-001"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-001"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_admin_operations.py",
+                "frontend/src/admin/AdminOperations.test.tsx"
+              ]
             }
           ]
         },
@@ -411,27 +457,24 @@
           "scenarios": [
             {
               "title": "首次计算当前情况",
-              "test_ids": [
-                "PAP-AAE-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_admin_operations.py",
+                "frontend/src/admin/AdminOperations.test.tsx"
+              ]
             },
             {
               "title": "新提交到达后查看旧 Snapshot",
-              "test_ids": [
-                "PAP-AAE-SC-003"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-003"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_admin_operations.py"]
             },
             {
               "title": "相同输入重复计算",
-              "test_ids": [
-                "PAP-AAE-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-004"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_admin_operations.py"]
             }
           ]
         },
@@ -441,17 +484,13 @@
           "scenarios": [
             {
               "title": "达到共识上限仍冲突",
-              "test_ids": [
-                "PAP-AAE-SC-005"
-              ],
+              "test_ids": ["PAP-AAE-SC-005"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
-              "title": "稳定 OOS 未命中抽检",
-              "test_ids": [
-                "PAP-AAE-SC-006"
-              ],
+              "title": "ScopePolicy 自动处置未命中抽检",
+              "test_ids": ["PAP-AAE-SC-015"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -463,11 +502,12 @@
           "scenarios": [
             {
               "title": "管理员通过微信指导",
-              "test_ids": [
-                "PAP-AAE-SC-007"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-007"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_guidance_event_api.py",
+                "frontend/src/assignment/GuidanceInbox.test.tsx"
+              ]
             }
           ]
         },
@@ -477,11 +517,9 @@
           "scenarios": [
             {
               "title": "审计发现严重问题",
-              "test_ids": [
-                "PAP-AAE-SC-008"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-008"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_analysis_jobs.py"]
             }
           ]
         },
@@ -491,19 +529,15 @@
           "scenarios": [
             {
               "title": "导出开放批次",
-              "test_ids": [
-                "PAP-AAE-SC-009"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-009"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_admin_operations.py"]
             },
             {
               "title": "导出平台身份",
-              "test_ids": [
-                "PAP-AAE-SC-010"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_admin_operations.py"]
             }
           ]
         },
@@ -513,11 +547,12 @@
           "scenarios": [
             {
               "title": "管理员查看工人统计",
-              "test_ids": [
-                "PAP-AAE-SC-011"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-AAE-SC-011"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_admin_operations.py",
+                "frontend/src/admin/AdminOperations.test.tsx"
+              ]
             }
           ]
         },
@@ -527,9 +562,7 @@
           "scenarios": [
             {
               "title": "管理员批量撤销 Assignment",
-              "test_ids": [
-                "PAP-AAE-SC-012"
-              ],
+              "test_ids": ["PAP-AAE-SC-012"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -541,17 +574,13 @@
           "scenarios": [
             {
               "title": "平台升级前",
-              "test_ids": [
-                "PAP-AAE-SC-013"
-              ],
+              "test_ids": ["PAP-AAE-SC-013"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "恢复演练",
-              "test_ids": [
-                "PAP-AAE-SC-014"
-              ],
+              "test_ids": ["PAP-AAE-SC-014"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -562,27 +591,21 @@
     {
       "capability": "annotation-contract",
       "prefix": "ANN",
-      "implementation_task_sections": [
-        "5"
-      ],
+      "implementation_task_sections": ["5"],
       "requirements": [
         {
-          "requirement_id": "PAP-ANN-REQ-001",
-          "title": "规范状态只包含 2D 几何和元标签",
+          "requirement_id": "PAP-ANN-REQ-009",
+          "title": "规范状态只包含工人提交的 2D 观察和元标签",
           "scenarios": [
             {
               "title": "工人在 3D 视图操作",
-              "test_ids": [
-                "PAP-ANN-SC-001"
-              ],
+              "test_ids": ["PAP-ANN-SC-001"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "导出墙面",
-              "test_ids": [
-                "PAP-ANN-SC-002"
-              ],
+              "test_ids": ["PAP-ANN-SC-002"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -594,23 +617,15 @@
           "scenarios": [
             {
               "title": "顶底点横坐标不同",
-              "test_ids": [
-                "PAP-ANN-SC-003"
-              ],
+              "test_ids": ["PAP-ANN-SC-003"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/test_annotation_state.py"
-              ]
+              "test_files": ["backend/tests/test_annotation_state.py"]
             },
             {
               "title": "Undo 后恢复角点对",
-              "test_ids": [
-                "PAP-ANN-SC-004"
-              ],
+              "test_ids": ["PAP-ANN-SC-004"],
               "coverage_status": "implemented",
-              "test_files": [
-                "frontend/src/annotation/AnnotationEditor.test.tsx"
-              ]
+              "test_files": ["frontend/src/annotation/AnnotationEditor.test.tsx"]
             }
           ]
         },
@@ -620,21 +635,15 @@
           "scenarios": [
             {
               "title": "切换媒体分辨率",
-              "test_ids": [
-                "PAP-ANN-SC-005"
-              ],
+              "test_ids": ["PAP-ANN-SC-005"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "角点跨越全景 seam",
-              "test_ids": [
-                "PAP-ANN-SC-006"
-              ],
+              "test_ids": ["PAP-ANN-SC-006"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/test_annotation_state.py"
-              ]
+              "test_files": ["backend/tests/test_annotation_state.py"]
             }
           ]
         },
@@ -644,9 +653,7 @@
           "scenarios": [
             {
               "title": "工人修正错误顺序",
-              "test_ids": [
-                "PAP-ANN-SC-007"
-              ],
+              "test_ids": ["PAP-ANN-SC-007"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -658,77 +665,113 @@
           "scenarios": [
             {
               "title": "仅修改展示文案",
-              "test_ids": [
-                "PAP-ANN-SC-008"
-              ],
+              "test_ids": ["PAP-ANN-SC-008"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "新增元标签选项",
-              "test_ids": [
-                "PAP-ANN-SC-009"
-              ],
+              "test_ids": ["PAP-ANN-SC-009"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "Manual Task 请求 model_issue",
-              "test_ids": [
-                "PAP-ANN-SC-010"
-              ],
+              "test_ids": ["PAP-ANN-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "backend/tests/test_meta_schema.py",
+                "frontend/src/annotation/AnnotationContractFields.test.tsx"
+              ]
+            },
+            {
+              "title": "互斥代码被同时提交",
+              "test_ids": ["PAP-ANN-SC-026"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_meta_schema.py",
+                "frontend/src/annotation/AnnotationContractFields.test.tsx"
+              ]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-010",
+          "title": "Worker Scope 是三态观察而非最终 Task truth",
+          "scenarios": [
+            {
+              "title": "工人无法确认表示是否兼容",
+              "test_ids": ["PAP-ANN-SC-017"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_annotation_state.py"]
+            },
+            {
+              "title": "当前表示不适用",
+              "test_ids": ["PAP-ANN-SC-018"],
               "coverage_status": "planned",
               "test_files": []
             }
           ]
         },
         {
-          "requirement_id": "PAP-ANN-REQ-006",
-          "title": "Scope 仅区分 in_scope 与 oos",
+          "requirement_id": "PAP-ANN-REQ-011",
+          "title": "Geometry attempt 与 Scope observation 独立",
           "scenarios": [
             {
-              "title": "工人无法精确归类 OOS",
-              "test_ids": [
-                "PAP-ANN-SC-011"
-              ],
+              "title": "best_effort_complete 非 annotatable 观察",
+              "test_ids": ["PAP-ANN-SC-019"],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "partial 几何",
+              "test_ids": ["PAP-ANN-SC-020"],
+              "coverage_status": "planned",
+              "test_files": []
+            },
+            {
+              "title": "not_drawable 几何",
+              "test_ids": ["PAP-ANN-SC-021"],
               "coverage_status": "planned",
               "test_files": []
             }
           ]
         },
         {
-          "requirement_id": "PAP-ANN-REQ-007",
-          "title": "OOS 必须包含认真尝试证据",
+          "requirement_id": "PAP-ANN-REQ-012",
+          "title": "PortalObservation 保存稳定 2D 几何与证据",
           "scenarios": [
             {
-              "title": "best_effort_complete OOS",
-              "test_ids": [
-                "PAP-ANN-SC-012"
-              ],
+              "title": "标注可见门洞",
+              "test_ids": ["PAP-ANN-SC-022"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_annotation_state.py",
+                "frontend/src/annotation/AnnotationEditor.test.tsx"
+              ]
+            },
+            {
+              "title": "开放平面没有稳定截面",
+              "test_ids": ["PAP-ANN-SC-023"],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-ANN-REQ-013",
+          "title": "Physical boundary 与派生 protocol closure 分离",
+          "scenarios": [
+            {
+              "title": "同一 opening 使用不同分区政策",
+              "test_ids": ["PAP-ANN-SC-024"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
-              "title": "partial OOS",
-              "test_ids": [
-                "PAP-ANN-SC-013"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
-            },
-            {
-              "title": "not_drawable OOS",
-              "test_ids": [
-                "PAP-ANN-SC-014"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
-            },
-            {
-              "title": "OOS 原因缺失",
-              "test_ids": [
-                "PAP-ANN-SC-015"
-              ],
+              "title": "导出虚拟闭合边",
+              "test_ids": ["PAP-ANN-SC-025"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -740,9 +783,7 @@
           "scenarios": [
             {
               "title": "客户端绕过字段校验",
-              "test_ids": [
-                "PAP-ANN-SC-016"
-              ],
+              "test_ids": ["PAP-ANN-SC-016"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -753,9 +794,7 @@
     {
       "capability": "draft-revision-review",
       "prefix": "DRR",
-      "implementation_task_sections": [
-        "6"
-      ],
+      "implementation_task_sections": ["6"],
       "requirements": [
         {
           "requirement_id": "PAP-DRR-REQ-001",
@@ -763,19 +802,21 @@
           "scenarios": [
             {
               "title": "正常自动保存",
-              "test_ids": [
-                "PAP-DRR-SC-001"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-001"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             },
             {
               "title": "旧客户端覆盖新草稿",
-              "test_ids": [
-                "PAP-DRR-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
@@ -785,11 +826,9 @@
           "scenarios": [
             {
               "title": "首次提交成功",
-              "test_ids": [
-                "PAP-DRR-SC-003"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-003"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_draft_revision_api.py"]
             }
           ]
         },
@@ -799,11 +838,12 @@
           "scenarios": [
             {
               "title": "提交响应丢失后重试",
-              "test_ids": [
-                "PAP-DRR-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-004"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
@@ -813,11 +853,12 @@
           "scenarios": [
             {
               "title": "工人主动修正先前标注",
-              "test_ids": [
-                "PAP-DRR-SC-005"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-005"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/assignment/AssignmentSwitcher.test.tsx"
+              ]
             }
           ]
         },
@@ -827,9 +868,7 @@
           "scenarios": [
             {
               "title": "换设备继续编辑",
-              "test_ids": [
-                "PAP-DRR-SC-006"
-              ],
+              "test_ids": ["PAP-DRR-SC-006"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -840,42 +879,46 @@
           "title": "复核绑定具体 Revision",
           "scenarios": [
             {
+              "title": "管理员接受或要求修改",
+              "test_ids": ["PAP-DRR-SC-014"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
+            },
+            {
+              "title": "管理员改判复核结果",
+              "test_ids": ["PAP-DRR-SC-015"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
+            },
+            {
               "title": "管理员裁决几何",
-              "test_ids": [
-                "PAP-DRR-SC-007"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-007"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
             },
             {
               "title": "工人提交新 Revision",
-              "test_ids": [
-                "PAP-DRR-SC-008"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-008"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
             }
           ]
         },
         {
-          "requirement_id": "PAP-DRR-REQ-007",
-          "title": "OOS 误判支持选择性返工",
+          "requirement_id": "PAP-DRR-REQ-010",
+          "title": "Scope 观察被裁决后支持选择性返工",
           "scenarios": [
             {
-              "title": "工人完成 OOS 返工",
-              "test_ids": [
-                "PAP-DRR-SC-009"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "工人完成 Scope 返工",
+              "test_ids": ["PAP-DRR-SC-013"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
             },
             {
               "title": "返工逾期",
-              "test_ids": [
-                "PAP-DRR-SC-010"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
             }
           ]
         },
@@ -885,11 +928,9 @@
           "scenarios": [
             {
               "title": "返工结果与初始质量统计",
-              "test_ids": [
-                "PAP-DRR-SC-011"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-DRR-SC-011"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_review_adjudication_api.py"]
             }
           ]
         },
@@ -899,9 +940,7 @@
           "scenarios": [
             {
               "title": "工人连续拖动角点",
-              "test_ids": [
-                "PAP-DRR-SC-012"
-              ],
+              "test_ids": ["PAP-DRR-SC-012"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -912,9 +951,7 @@
     {
       "capability": "identity-access",
       "prefix": "IAM",
-      "implementation_task_sections": [
-        "2"
-      ],
+      "implementation_task_sections": ["2"],
       "requirements": [
         {
           "requirement_id": "PAP-IAM-REQ-001",
@@ -922,23 +959,15 @@
           "scenarios": [
             {
               "title": "管理员创建工人账号",
-              "test_ids": [
-                "PAP-IAM-SC-001"
-              ],
+              "test_ids": ["PAP-IAM-SC-001"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/identity/test_account_access.py"
-              ]
+              "test_files": ["backend/tests/identity/test_account_access.py"]
             },
             {
               "title": "未授权注册被拒绝",
-              "test_ids": [
-                "PAP-IAM-SC-002"
-              ],
+              "test_ids": ["PAP-IAM-SC-002"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/identity/test_account_access.py"
-              ]
+              "test_files": ["backend/tests/identity/test_account_access.py"]
             }
           ]
         },
@@ -948,23 +977,15 @@
           "scenarios": [
             {
               "title": "首次登录强制改密",
-              "test_ids": [
-                "PAP-IAM-SC-003"
-              ],
+              "test_ids": ["PAP-IAM-SC-003"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/identity/test_account_access.py"
-              ]
+              "test_files": ["backend/tests/identity/test_account_access.py"]
             },
             {
               "title": "管理员重置密码",
-              "test_ids": [
-                "PAP-IAM-SC-004"
-              ],
+              "test_ids": ["PAP-IAM-SC-004"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/identity/test_account_access.py"
-              ]
+              "test_files": ["backend/tests/identity/test_account_access.py"]
             }
           ]
         },
@@ -974,17 +995,13 @@
           "scenarios": [
             {
               "title": "工人访问他人任务",
-              "test_ids": [
-                "PAP-IAM-SC-005"
-              ],
+              "test_ids": ["PAP-IAM-SC-005"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "管理员执行全局复核",
-              "test_ids": [
-                "PAP-IAM-SC-006"
-              ],
+              "test_ids": ["PAP-IAM-SC-006"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -996,25 +1013,19 @@
           "scenarios": [
             {
               "title": "新设备接管",
-              "test_ids": [
-                "PAP-IAM-SC-007"
-              ],
+              "test_ids": ["PAP-IAM-SC-007"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "同一浏览器打开第二个标注页",
-              "test_ids": [
-                "PAP-IAM-SC-008"
-              ],
+              "test_ids": ["PAP-IAM-SC-008"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "活动租约正常过期",
-              "test_ids": [
-                "PAP-IAM-SC-009"
-              ],
+              "test_ids": ["PAP-IAM-SC-009"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1026,9 +1037,7 @@
           "scenarios": [
             {
               "title": "已撤销会话重试请求",
-              "test_ids": [
-                "PAP-IAM-SC-010"
-              ],
+              "test_ids": ["PAP-IAM-SC-010"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1040,9 +1049,7 @@
           "scenarios": [
             {
               "title": "工人查看工作状态",
-              "test_ids": [
-                "PAP-IAM-SC-011"
-              ],
+              "test_ids": ["PAP-IAM-SC-011"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/identity/test_session_security.py",
@@ -1056,9 +1063,7 @@
     {
       "capability": "media-ingestion-delivery",
       "prefix": "MID",
-      "implementation_task_sections": [
-        "3"
-      ],
+      "implementation_task_sections": ["3"],
       "requirements": [
         {
           "requirement_id": "PAP-MID-REQ-001",
@@ -1066,9 +1071,7 @@
           "scenarios": [
             {
               "title": "导入高清图和压缩图",
-              "test_ids": [
-                "PAP-MID-SC-001"
-              ],
+              "test_ids": ["PAP-MID-SC-001"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_asset_models.py",
@@ -1077,9 +1080,7 @@
             },
             {
               "title": "已发布对象内容变化",
-              "test_ids": [
-                "PAP-MID-SC-002"
-              ],
+              "test_ids": ["PAP-MID-SC-002"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_import_api.py",
@@ -1094,9 +1095,7 @@
           "scenarios": [
             {
               "title": "导入合法等距柱状图",
-              "test_ids": [
-                "PAP-MID-SC-003"
-              ],
+              "test_ids": ["PAP-MID-SC-003"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_ingestion.py",
@@ -1106,9 +1105,7 @@
             },
             {
               "title": "导入 skybox 面集合",
-              "test_ids": [
-                "PAP-MID-SC-004"
-              ],
+              "test_ids": ["PAP-MID-SC-004"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_ingestion.py",
@@ -1124,9 +1121,7 @@
           "scenarios": [
             {
               "title": "重复导入同一对象",
-              "test_ids": [
-                "PAP-MID-SC-005"
-              ],
+              "test_ids": ["PAP-MID-SC-005"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_ingestion.py",
@@ -1137,9 +1132,7 @@
             },
             {
               "title": "显式创建新轮次",
-              "test_ids": [
-                "PAP-MID-SC-006"
-              ],
+              "test_ids": ["PAP-MID-SC-006"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_import_api.py",
@@ -1149,9 +1142,7 @@
             },
             {
               "title": "发布前预览发现配对错误",
-              "test_ids": [
-                "PAP-MID-SC-007"
-              ],
+              "test_ids": ["PAP-MID-SC-007"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_import_api.py",
@@ -1166,9 +1157,7 @@
           "scenarios": [
             {
               "title": "工人加载获授权媒体",
-              "test_ids": [
-                "PAP-MID-SC-008"
-              ],
+              "test_ids": ["PAP-MID-SC-008"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_worker_media_api.py",
@@ -1177,9 +1166,7 @@
             },
             {
               "title": "签名地址过期",
-              "test_ids": [
-                "PAP-MID-SC-009"
-              ],
+              "test_ids": ["PAP-MID-SC-009"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_worker_media_api.py",
@@ -1194,17 +1181,16 @@
           "scenarios": [
             {
               "title": "高清图加载较慢",
-              "test_ids": [
-                "PAP-MID-SC-010"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-MID-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/media/AssignmentMedia.test.tsx",
+                "e2e/tests/media-delivery.spec.ts"
+              ]
             },
             {
               "title": "一个变体不可用",
-              "test_ids": [
-                "PAP-MID-SC-011"
-              ],
+              "test_ids": ["PAP-MID-SC-011"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_worker_media_api.py",
@@ -1213,11 +1199,13 @@
             },
             {
               "title": "所有变体不可用",
-              "test_ids": [
-                "PAP-MID-SC-012"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-MID-SC-012"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_worker_media_api.py",
+                "frontend/src/media/AssignmentMedia.test.tsx",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
@@ -1227,9 +1215,7 @@
           "scenarios": [
             {
               "title": "非等比变形图片候选",
-              "test_ids": [
-                "PAP-MID-SC-013"
-              ],
+              "test_ids": ["PAP-MID-SC-013"],
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_media_ingestion.py",
@@ -1244,13 +1230,9 @@
           "scenarios": [
             {
               "title": "工人尝试上传替代图片",
-              "test_ids": [
-                "PAP-MID-SC-014"
-              ],
+              "test_ids": ["PAP-MID-SC-014"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/test_worker_media_api.py"
-              ]
+              "test_files": ["backend/tests/test_worker_media_api.py"]
             }
           ]
         }
@@ -1259,9 +1241,7 @@
     {
       "capability": "platform-boundaries",
       "prefix": "PBD",
-      "implementation_task_sections": [
-        "13"
-      ],
+      "implementation_task_sections": ["13"],
       "requirements": [
         {
           "requirement_id": "PAP-PBD-REQ-001",
@@ -1269,19 +1249,18 @@
           "scenarios": [
             {
               "title": "受支持浏览器通过预检",
-              "test_ids": [
-                "PAP-PBD-SC-001"
-              ],
+              "test_ids": ["PAP-PBD-SC-001"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
-              "title": "WebGL 不可用",
-              "test_ids": [
-                "PAP-PBD-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "POC 中 WebGL 不可用",
+              "test_ids": ["PAP-PBD-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/platform/devicePreflight.test.ts",
+                "frontend/src/platform/DevicePreflightGate.test.tsx"
+              ]
             }
           ]
         },
@@ -1291,11 +1270,14 @@
           "scenarios": [
             {
               "title": "世界各地工人提交",
-              "test_ids": [
-                "PAP-PBD-SC-003"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PBD-SC-003"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/annotation/AnnotationContractFields.test.tsx",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx",
+                "frontend/src/locale.test.ts"
+              ]
             }
           ]
         },
@@ -1305,11 +1287,12 @@
           "scenarios": [
             {
               "title": "首次进入工作区",
-              "test_ids": [
-                "PAP-PBD-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PBD-SC-004"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/identity/test_privacy_notice.py",
+                "frontend/src/privacy/DataNoticeGate.test.tsx"
+              ]
             }
           ]
         },
@@ -1319,9 +1302,7 @@
           "scenarios": [
             {
               "title": "质量画像生成",
-              "test_ids": [
-                "PAP-PBD-SC-005"
-              ],
+              "test_ids": ["PAP-PBD-SC-005"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1333,9 +1314,7 @@
           "scenarios": [
             {
               "title": "Active-time 规则改变",
-              "test_ids": [
-                "PAP-PBD-SC-006"
-              ],
+              "test_ids": ["PAP-PBD-SC-006"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1347,9 +1326,7 @@
           "scenarios": [
             {
               "title": "新平台部署",
-              "test_ids": [
-                "PAP-PBD-SC-007"
-              ],
+              "test_ids": ["PAP-PBD-SC-007"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1361,9 +1338,7 @@
           "scenarios": [
             {
               "title": "下游需要旧 LS 数据",
-              "test_ids": [
-                "PAP-PBD-SC-008"
-              ],
+              "test_ids": ["PAP-PBD-SC-008"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1375,17 +1350,13 @@
           "scenarios": [
             {
               "title": "请求未来桌面客户端",
-              "test_ids": [
-                "PAP-PBD-SC-009"
-              ],
+              "test_ids": ["PAP-PBD-SC-009"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "请求本地媒体包",
-              "test_ids": [
-                "PAP-PBD-SC-010"
-              ],
+              "test_ids": ["PAP-PBD-SC-010"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1397,9 +1368,7 @@
           "scenarios": [
             {
               "title": "某地区媒体持续缓慢",
-              "test_ids": [
-                "PAP-PBD-SC-011"
-              ],
+              "test_ids": ["PAP-PBD-SC-011"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1410,9 +1379,7 @@
     {
       "capability": "prediction-assist",
       "prefix": "PAS",
-      "implementation_task_sections": [
-        "9"
-      ],
+      "implementation_task_sections": ["9"],
       "requirements": [
         {
           "requirement_id": "PAP-PAS-REQ-001",
@@ -1420,19 +1387,21 @@
           "scenarios": [
             {
               "title": "工人打开 Manual Task",
-              "test_ids": [
-                "PAP-PAS-SC-001"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-001"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/assignment/AssignmentSwitcher.test.tsx"
+              ]
             },
             {
               "title": "同一 Asset 同时存在 Semi Task",
-              "test_ids": [
-                "PAP-PAS-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_prediction_artifact.py",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
@@ -1442,19 +1411,15 @@
           "scenarios": [
             {
               "title": "发布合法 Semi Task",
-              "test_ids": [
-                "PAP-PAS-SC-003"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-003"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_prediction_artifact.py"]
             },
             {
               "title": "更换 checkpoint 结果",
-              "test_ids": [
-                "PAP-PAS-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-004"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_prediction_artifact.py"]
             }
           ]
         },
@@ -1464,19 +1429,18 @@
           "scenarios": [
             {
               "title": "本地预测导入成功",
-              "test_ids": [
-                "PAP-PAS-SC-005"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-005"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_prediction_artifact.py",
+                "frontend/src/prediction/PredictionImportWizard.test.tsx"
+              ]
             },
             {
               "title": "平台运行时缺少模型",
-              "test_ids": [
-                "PAP-PAS-SC-006"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-006"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_prediction_artifact.py"]
             }
           ]
         },
@@ -1486,11 +1450,12 @@
           "scenarios": [
             {
               "title": "Artifact 哈希不匹配",
-              "test_ids": [
-                "PAP-PAS-SC-007"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-007"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_prediction_artifact.py",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
@@ -1500,11 +1465,9 @@
           "scenarios": [
             {
               "title": "候选返回前状态已改变",
-              "test_ids": [
-                "PAP-PAS-SC-008"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-008"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_assist_contract.py"]
             }
           ]
         },
@@ -1514,11 +1477,9 @@
           "scenarios": [
             {
               "title": "普通工人请求 A-line 候选",
-              "test_ids": [
-                "PAP-PAS-SC-009"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-009"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_assignment_api.py"]
             }
           ]
         },
@@ -1528,9 +1489,7 @@
           "scenarios": [
             {
               "title": "工人撤销已应用候选",
-              "test_ids": [
-                "PAP-PAS-SC-010"
-              ],
+              "test_ids": ["PAP-PAS-SC-010"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1542,11 +1501,9 @@
           "scenarios": [
             {
               "title": "管理员提交未注册脚本",
-              "test_ids": [
-                "PAP-PAS-SC-011"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PAS-SC-011"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_prediction_artifact.py"]
             }
           ]
         }
@@ -1555,115 +1512,101 @@
     {
       "capability": "preview-validation",
       "prefix": "PRV",
-      "implementation_task_sections": [
-        "7"
-      ],
+      "implementation_task_sections": ["7"],
       "requirements": [
         {
-          "requirement_id": "PAP-PRV-REQ-001",
-          "title": "3D 预览在工人设备本地派生",
+          "requirement_id": "PAP-PRV-REQ-007",
+          "title": "POC wireframe 在工人设备本地派生且仅供参考",
           "scenarios": [
             {
-              "title": "本地生成预览",
-              "test_ids": [
-                "PAP-PRV-SC-001"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "本地生成信息性 wireframe",
+              "test_ids": ["PAP-PRV-SC-010"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/PocWireframe.test.tsx"]
             }
           ]
         },
         {
-          "requirement_id": "PAP-PRV-REQ-002",
-          "title": "只在动作完成后刷新 3D",
+          "requirement_id": "PAP-PRV-REQ-008",
+          "title": "只在动作完成后刷新 POC wireframe",
           "scenarios": [
             {
               "title": "持续拖动角点",
-              "test_ids": [
-                "PAP-PRV-SC-002"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PRV-SC-002"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/PocWireframe.test.tsx"]
             },
             {
               "title": "旧预览晚于新状态返回",
-              "test_ids": [
-                "PAP-PRV-SC-003"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PRV-SC-003"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/PocWireframe.test.tsx"]
             }
           ]
         },
         {
-          "requirement_id": "PAP-PRV-REQ-003",
-          "title": "In-scope 提交绑定当前预览哈希",
+          "requirement_id": "PAP-PRV-REQ-009",
+          "title": "POC wireframe 不得成为提交门槛",
           "scenarios": [
             {
               "title": "预览后又移动角点",
-              "test_ids": [
-                "PAP-PRV-SC-004"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-PRV-SC-004"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/assignment/PocWireframe.test.tsx",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             },
             {
-              "title": "OOS partial 提交",
-              "test_ids": [
-                "PAP-PRV-SC-005"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "partial 提交",
+              "test_ids": ["PAP-PRV-SC-011"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_annotation_state.py"]
             }
           ]
         },
         {
-          "requirement_id": "PAP-PRV-REQ-004",
-          "title": "结构错误分为硬阻断和软警告",
+          "requirement_id": "PAP-PRV-REQ-010",
+          "title": "POC 只执行确定性的 canonical 校验",
           "scenarios": [
             {
-              "title": "明确自交",
-              "test_ids": [
-                "PAP-PRV-SC-006"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "非法 canonical 状态",
+              "test_ids": ["PAP-PRV-SC-012"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_draft_revision_api.py"]
             },
             {
-              "title": "top/bottom 横向偏差较大",
-              "test_ids": [
-                "PAP-PRV-SC-007"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "POC wireframe 生成失败",
+              "test_ids": ["PAP-PRV-SC-013"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/assignment/PocWireframe.test.tsx",
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+              ]
             }
           ]
         },
         {
-          "requirement_id": "PAP-PRV-REQ-005",
-          "title": "严重 Manhattan 偏差必须提醒",
+          "requirement_id": "PAP-PRV-REQ-011",
+          "title": "正式 geometry authority 必须在 POC 后单独确认",
           "scenarios": [
             {
-              "title": "工人保留非标准布局",
-              "test_ids": [
-                "PAP-PRV-SC-008"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "请求把 POC wireframe 作为质量门槛",
+              "test_ids": ["PAP-PRV-SC-014"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/PocWireframe.test.tsx"]
             }
           ]
         },
         {
-          "requirement_id": "PAP-PRV-REQ-006",
-          "title": "错误必须定位到具体对象",
+          "requirement_id": "PAP-PRV-REQ-012",
+          "title": "校验错误必须定位到具体对象",
           "scenarios": [
             {
-              "title": "相邻墙面冲突",
-              "test_ids": [
-                "PAP-PRV-SC-009"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "Portal 引用不存在的 host edge",
+              "test_ids": ["PAP-PRV-SC-015"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/AssignmentWorkspace.test.tsx"]
             }
           ]
         }
@@ -1672,9 +1615,7 @@
     {
       "capability": "task-batch-assignment",
       "prefix": "TBA",
-      "implementation_task_sections": [
-        "4"
-      ],
+      "implementation_task_sections": ["4", "11"],
       "requirements": [
         {
           "requirement_id": "PAP-TBA-REQ-001",
@@ -1682,17 +1623,13 @@
           "scenarios": [
             {
               "title": "Manual 改为 Semi",
-              "test_ids": [
-                "PAP-TBA-SC-001"
-              ],
+              "test_ids": ["PAP-TBA-SC-001"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "修改显示合同",
-              "test_ids": [
-                "PAP-TBA-SC-002"
-              ],
+              "test_ids": ["PAP-TBA-SC-002"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1704,23 +1641,15 @@
           "scenarios": [
             {
               "title": "删除误建草稿",
-              "test_ids": [
-                "PAP-TBA-SC-003"
-              ],
+              "test_ids": ["PAP-TBA-SC-003"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/test_task_lifecycle.py"
-              ]
+              "test_files": ["backend/tests/test_task_lifecycle.py"]
             },
             {
               "title": "取消已发布任务",
-              "test_ids": [
-                "PAP-TBA-SC-004"
-              ],
+              "test_ids": ["PAP-TBA-SC-004"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/test_task_lifecycle.py"
-              ]
+              "test_files": ["backend/tests/test_task_lifecycle.py"]
             }
           ]
         },
@@ -1730,33 +1659,64 @@
           "scenarios": [
             {
               "title": "导入含旧任务编号的数据",
-              "test_ids": [
-                "PAP-TBA-SC-005"
-              ],
+              "test_ids": ["PAP-TBA-SC-005"],
               "coverage_status": "implemented",
-              "test_files": [
-                "backend/tests/test_task_lifecycle.py"
-              ]
+              "test_files": ["backend/tests/test_task_lifecycle.py"]
             }
           ]
         },
         {
           "requirement_id": "PAP-TBA-REQ-004",
-          "title": "WorkBatch 允许多任务并行工作",
+          "title": "WorkBatch 按顺序支持暂时跳过与强制回访",
           "scenarios": [
             {
-              "title": "暂缓困难任务",
-              "test_ids": [
-                "PAP-TBA-SC-006"
-              ],
+              "title": "按顺序暂时跳过",
+              "test_ids": ["PAP-TBA-SC-006"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_assignment_api.py",
+                "frontend/src/assignment/AssignmentSwitcher.test.tsx"
+              ]
+            },
+            {
+              "title": "批次末尾返回最早暂缓任务",
+              "test_ids": ["PAP-TBA-SC-007"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/AssignmentSwitcher.test.tsx"]
+            },
+            {
+              "title": "暂缓任务不算完成",
+              "test_ids": ["PAP-TBA-SC-019"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_assignment_api.py"]
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-010",
+          "title": "Batch 与 Assignment 明确记录工作目的",
+          "scenarios": [
+            {
+              "title": "生产图同时用于画像证据",
+              "test_ids": ["PAP-TBA-SC-015"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
-              "title": "返回先前任务",
-              "test_ids": [
-                "PAP-TBA-SC-007"
-              ],
+              "title": "生成 precision probe",
+              "test_ids": ["PAP-TBA-SC-016"],
+              "coverage_status": "planned",
+              "test_files": []
+            }
+          ]
+        },
+        {
+          "requirement_id": "PAP-TBA-REQ-011",
+          "title": "TaskFeatureVector 在首次路由前冻结并版本化",
+          "scenarios": [
+            {
+              "title": "提交后发现任务更难",
+              "test_ids": ["PAP-TBA-SC-017"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1768,9 +1728,7 @@
           "scenarios": [
             {
               "title": "已提交 Revision 要求修改",
-              "test_ids": [
-                "PAP-TBA-SC-008"
-              ],
+              "test_ids": ["PAP-TBA-SC-008"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1782,17 +1740,13 @@
           "scenarios": [
             {
               "title": "管理员批准建议",
-              "test_ids": [
-                "PAP-TBA-SC-009"
-              ],
+              "test_ids": ["PAP-TBA-SC-009"],
               "coverage_status": "planned",
               "test_files": []
             },
             {
               "title": "管理员覆盖建议",
-              "test_ids": [
-                "PAP-TBA-SC-010"
-              ],
+              "test_ids": ["PAP-TBA-SC-010"],
               "coverage_status": "planned",
               "test_files": []
             }
@@ -1804,33 +1758,36 @@
           "scenarios": [
             {
               "title": "追加一名独立工人",
-              "test_ids": [
-                "PAP-TBA-SC-011"
-              ],
+              "test_ids": ["PAP-TBA-SC-011"],
               "coverage_status": "planned",
               "test_files": []
             }
           ]
         },
         {
-          "requirement_id": "PAP-TBA-REQ-008",
-          "title": "OOS 与 Skip 明确分离",
+          "requirement_id": "PAP-TBA-REQ-012",
+          "title": "Scope observation、暂时跳过与报告阻断明确分离",
           "scenarios": [
             {
-              "title": "工人提交 OOS",
-              "test_ids": [
-                "PAP-TBA-SC-012"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "工人提交 representation_oos",
+              "test_ids": ["PAP-TBA-SC-018"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_draft_revision_api.py"]
             },
             {
-              "title": "工人 Skip 技术故障",
-              "test_ids": [
-                "PAP-TBA-SC-013"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "title": "工人报告技术阻断",
+              "test_ids": ["PAP-TBA-SC-013"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_draft_revision_api.py",
+                "frontend/src/assignment/AssignmentSwitcher.test.tsx"
+              ]
+            },
+            {
+              "title": "管理员处置阻断",
+              "test_ids": ["PAP-TBA-SC-020"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_draft_revision_api.py"]
             }
           ]
         },
@@ -1840,11 +1797,9 @@
           "scenarios": [
             {
               "title": "批次关闭时存在返工草稿",
-              "test_ids": [
-                "PAP-TBA-SC-014"
-              ],
-              "coverage_status": "planned",
-              "test_files": []
+              "test_ids": ["PAP-TBA-SC-014"],
+              "coverage_status": "implemented",
+              "test_files": ["backend/tests/test_draft_revision_api.py"]
             }
           ]
         }

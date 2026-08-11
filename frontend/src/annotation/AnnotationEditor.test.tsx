@@ -5,6 +5,8 @@ import type { AnnotationState } from "../annotationState";
 import { AnnotationEditor } from "./AnnotationEditor";
 
 const initialState: AnnotationState = {
+  geometry_attempt_reason_text: "",
+  geometry_attempt_status: "best_effort_complete",
   pairs: [
     {
       bottom: {
@@ -35,7 +37,11 @@ const initialState: AnnotationState = {
       },
     },
   ],
+  portals: [],
   seam_anchor_pair_id: "00000000-0000-4000-8000-000000000001",
+  scope_reason_codes: [],
+  scope_reason_text: "",
+  worker_scope_observation: "annotatable",
 };
 
 function latestState(onChange: ReturnType<typeof vi.fn>): AnnotationState {
@@ -65,7 +71,7 @@ describe("AnnotationEditor", () => {
       y: 0,
     });
 
-    const topPoint = screen.getByRole("button", { name: "第 1 对顶点" });
+    const topPoint = screen.getByLabelText("第 1 对顶点");
     fireEvent.pointerDown(topPoint, { clientX: 100, clientY: 40, pointerId: 1 });
     fireEvent.pointerMove(canvas, { clientX: 250, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(canvas, { clientX: 350, clientY: 150, pointerId: 1 });
@@ -142,7 +148,13 @@ describe("AnnotationEditor", () => {
     expect(added.pair_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(added.top).toMatchObject({ u: 0.2, v: 0.1 });
     expect(added.bottom).toMatchObject({ u: 0.22, v: 0.9 });
-    expect(Object.keys(state).sort()).toEqual(["pairs", "seam_anchor_pair_id"]);
+    expect(state).toMatchObject({
+      geometry_attempt_status: initialState.geometry_attempt_status,
+      portals: initialState.portals,
+      scope_reason_codes: initialState.scope_reason_codes,
+      scope_reason_text: initialState.scope_reason_text,
+      worker_scope_observation: initialState.worker_scope_observation,
+    });
     expect(JSON.stringify(state)).not.toMatch(/wall|bev|mesh/i);
   });
 
@@ -168,5 +180,156 @@ describe("AnnotationEditor", () => {
     await waitFor(() =>
       expect(latestState(onChange).seam_anchor_pair_id).toBe(initialState.pairs[1].pair_id),
     );
+  });
+
+  it("edits the POC scope and attempt fields without losing geometry", async () => {
+    const onChange = vi.fn();
+    render(<AnnotationEditor initialState={initialState} onChange={onChange} />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Scope / 范围判断" }), {
+      target: { value: "representation_oos" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /insufficient_evidence/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Geometry attempt / 几何完成度" }), {
+      target: { value: "not_drawable" },
+    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "无法绘制说明 / Not drawable explanation" }),
+      { target: { value: "Image evidence is insufficient." } },
+    );
+
+    await waitFor(() =>
+      expect(latestState(onChange)).toMatchObject({
+        geometry_attempt_status: "not_drawable",
+        geometry_attempt_reason_text: "Image evidence is insufficient.",
+        scope_reason_codes: ["insufficient_evidence"],
+        worker_scope_observation: "representation_oos",
+      }),
+    );
+    expect(latestState(onChange).pairs).toEqual(initialState.pairs);
+
+    fireEvent.click(screen.getByRole("button", { name: "删除第 2 对" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除第 1 对" }));
+    await waitFor(() => expect(latestState(onChange).pairs).toEqual([]));
+    expect(latestState(onChange).seam_anchor_pair_id).toBeNull();
+    expect(latestState(onChange).worker_scope_observation).toBe("representation_oos");
+  });
+
+  it("creates a PortalObservation only from explicit four-corner input", async () => {
+    const onChange = vi.fn();
+    render(<AnnotationEditor initialState={initialState} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "添加 Portal" }));
+    for (const [name, value] of [
+      ["Portal 左上 u", "0.2"],
+      ["Portal 左上 v", "0.3"],
+      ["Portal 右上 u", "0.3"],
+      ["Portal 右上 v", "0.3"],
+      ["Portal 左下 u", "0.2"],
+      ["Portal 左下 v", "0.8"],
+      ["Portal 右下 u", "0.3"],
+      ["Portal 右下 v", "0.8"],
+    ]) {
+      fireEvent.change(screen.getByRole("spinbutton", { name }), { target: { value } });
+    }
+    fireEvent.change(screen.getByRole("combobox", { name: "Portal 类型" }), {
+      target: { value: "architectural_opening" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Portal 证据状态" }), {
+      target: { value: "direct_visible" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存 Portal" }));
+
+    await waitFor(() => expect(latestState(onChange).portals).toHaveLength(1));
+    expect(latestState(onChange).portals[0]).toMatchObject({
+      evidence_status: "direct_visible",
+      geometry: {
+        bottom_left: { u: 0.2, v: 0.8 },
+        bottom_right: { u: 0.3, v: 0.8 },
+        top_left: { u: 0.2, v: 0.3 },
+        top_right: { u: 0.3, v: 0.3 },
+      },
+      host_edge_ref: null,
+      kind: "architectural_opening",
+    });
+    expect(Object.keys(latestState(onChange).portals[0]).sort()).toEqual([
+      "evidence_status",
+      "geometry",
+      "host_edge_ref",
+      "kind",
+      "portal_id",
+    ]);
+
+    const portalId = latestState(onChange).portals[0].portal_id;
+    fireEvent.click(screen.getByRole("button", { name: "编辑 Portal 1" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Portal 左上 u" }), {
+      target: { value: "0.25" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存 Portal" }));
+    await waitFor(() => expect(latestState(onChange).portals[0].geometry.top_left.u).toBe(0.25));
+    expect(latestState(onChange).portals[0].portal_id).toBe(portalId);
+  });
+
+  it("blocks assignment switching while a point pair or Portal is only partially entered", () => {
+    const onTransientEditingChange = vi.fn();
+    render(
+      <AnnotationEditor
+        initialState={initialState}
+        onChange={vi.fn()}
+        onTransientEditingChange={onTransientEditingChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "添加角点对" }));
+    expect(onTransientEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: "取消添加" }));
+    expect(onTransientEditingChange).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "添加 Portal" }));
+    expect(onTransientEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: "取消 Portal" }));
+    expect(onTransientEditingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("clears a Portal host reference when its pair is deleted in the same undo step", async () => {
+    const withPortal = structuredClone(initialState);
+    withPortal.portals = [
+      {
+        evidence_status: "direct_visible",
+        geometry: {
+          bottom_left: { u: 0.2, v: 0.8 },
+          bottom_right: { u: 0.3, v: 0.8 },
+          top_left: { u: 0.2, v: 0.3 },
+          top_right: { u: 0.3, v: 0.3 },
+        },
+        host_edge_ref: initialState.pairs[1].pair_id,
+        kind: "door",
+        portal_id: "00000000-0000-4000-8000-000000000007",
+      },
+    ];
+    const onChange = vi.fn();
+    render(<AnnotationEditor initialState={withPortal} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "删除第 2 对" }));
+    await waitFor(() => expect(latestState(onChange).portals[0].host_edge_ref).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    await waitFor(() =>
+      expect(latestState(onChange).portals[0].host_edge_ref).toBe(initialState.pairs[1].pair_id),
+    );
+  });
+
+  it("clears scope reasons when the observation is reset to unanswered", async () => {
+    const onChange = vi.fn();
+    render(<AnnotationEditor initialState={initialState} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Scope / 范围判断" }), {
+      target: { value: "needs_scope_review" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /insufficient_evidence/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Scope / 范围判断" }), {
+      target: { value: "" },
+    });
+
+    await waitFor(() => expect(latestState(onChange).worker_scope_observation).toBeNull());
+    expect(latestState(onChange).scope_reason_codes).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ from django.test import Client
 from identity.models import User
 from media.catalog import MediaCandidateNotFound, MediaCatalogCandidate
 from media.models import Asset, MediaObjectRegistration, MediaVariant
-from work.models import Task
+from work.models import OperationalIssue, Task
 from work.services import (
     assign_task,
     cancel_task,
@@ -55,9 +55,7 @@ def worker(username: str) -> User:
     )
 
 
-def media_variant(
-    *, asset: Asset, role: str, suffix: str, version: str
-) -> MediaVariant:
+def media_variant(*, asset: Asset, role: str, suffix: str, version: str) -> MediaVariant:
     variant = MediaVariant.objects.create(
         asset=asset,
         source_key=f"incoming/{suffix}/{role}",
@@ -90,7 +88,9 @@ def media_variant(
     return variant
 
 
-def assignment_with_media(*, owner: User, suffix: str = "delivery") -> tuple[Any, tuple[MediaVariant, ...]]:
+def assignment_with_media(
+    *, owner: User, suffix: str = "delivery"
+) -> tuple[Any, tuple[MediaVariant, ...]]:
     asset = Asset.objects.create(source_key=f"panoramas/{suffix}")
     variants = (
         media_variant(
@@ -236,14 +236,12 @@ def test_pap_mid_sc_011_integrity_failure_keeps_the_equivalent_variant(
                 else None,
             )
 
-    monkeypatch.setattr("media.views.get_cos_catalog", PartlyMismatchedCatalog)
+    monkeypatch.setattr("work.media_workflows.get_cos_catalog", PartlyMismatchedCatalog)
 
     response = logged_in(owner).get(f"/api/worker/assignments/{assignment.assignment_id}/media")
 
     assert response.status_code == 200
-    assert [item["role"] for item in response.json()["variants"]] == [
-        MediaVariant.Role.COMPRESSED
-    ]
+    assert [item["role"] for item in response.json()["variants"]] == [MediaVariant.Role.COMPRESSED]
     assert response.json()["unavailable_roles"] == [MediaVariant.Role.HIGH_RESOLUTION]
     assert "unexpected-version" not in str(response.json())
 
@@ -258,12 +256,13 @@ def test_pap_mid_sc_012_all_permanently_missing_variants_are_unavailable(
         def get_candidate(self, *, source_key: str) -> MediaCatalogCandidate:
             raise MediaCandidateNotFound(source_key)
 
-    monkeypatch.setattr("media.views.get_cos_catalog", MissingCatalog)
+    monkeypatch.setattr("work.media_workflows.get_cos_catalog", MissingCatalog)
 
     response = logged_in(owner).get(f"/api/worker/assignments/{assignment.assignment_id}/media")
 
     assert response.status_code == 409
     assert response.json() == {"error": {"code": "image_unavailable"}}
+    assert OperationalIssue.objects.get(assignment=assignment).error_code == "image_unavailable"
 
 
 def test_terminated_assignment_cannot_renew_media_credentials(monkeypatch: Any) -> None:

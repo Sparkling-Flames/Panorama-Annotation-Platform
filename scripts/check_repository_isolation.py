@@ -26,6 +26,7 @@ EXECUTABLE_ROOTS = {
 ROOT_EXECUTION_FILES = {
     "Dockerfile",
     "Makefile",
+    "Procfile",
     "compose.yml",
     "docker-compose.yml",
     "eslint.config.mjs",

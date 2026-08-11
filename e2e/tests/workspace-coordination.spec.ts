@@ -2,32 +2,17 @@ import process from "node:process";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { loginViaApi } from "./api-helpers";
+
 const WORKER_PASSWORD = process.env.PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD;
 
 if (WORKER_PASSWORD === undefined) {
   throw new Error("Missing PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD");
 }
+const VERIFIED_WORKER_PASSWORD = WORKER_PASSWORD;
 
 async function loginWorker(page: Page, username: string): Promise<void> {
-  await page.goto("/");
-  const loginStatus = await page.evaluate(
-    async ({ password, workerUsername }) => {
-      await fetch("/api/auth/csrf", { credentials: "same-origin" });
-      const csrfToken = document.cookie
-        .split("; ")
-        .find((cookie) => cookie.startsWith("csrftoken="))
-        ?.slice("csrftoken=".length);
-      const response = await fetch("/api/auth/login", {
-        body: JSON.stringify({ password, username: workerUsername }),
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken ?? "" },
-        method: "POST",
-      });
-      return response.status;
-    },
-    { password: WORKER_PASSWORD, workerUsername: username },
-  );
-  expect(loginStatus).toBe(200);
+  await loginViaApi(page, username, VERIFIED_WORKER_PASSWORD);
   await page.reload();
 }
 
@@ -70,14 +55,14 @@ test("PAP-IAM-SC-007 requires takeover and makes the old page fail its next rene
     );
     await oldPage.clock.fastForward(45_000);
     expect((await renewal).status()).toBe(409);
-    await expect(oldPage.getByText("无法取得或续租工作区，当前页面不可编辑。")).toBeVisible();
+    await expect(oldPage.getByText("工作区已失效，已保留本地恢复副本。")).toBeVisible();
     await expect(oldPage.getByText("工作区可编辑。")).not.toBeVisible();
   } finally {
     await Promise.all([oldContext.close(), newContext.close()]);
   }
 });
 
-test("PAP-IAM-REQ-004 exits editable on network loss and recovers only after retry", async ({
+test("PAP-IAM-REQ-004 PAP-AOF-SC-007 enters offline mode and renews after connectivity returns", async ({
   context,
   page,
 }) => {
@@ -87,10 +72,13 @@ test("PAP-IAM-REQ-004 exits editable on network loss and recovers only after ret
 
   await context.setOffline(true);
   await page.clock.fastForward(45_000);
-  await expect(page.getByText("网络中断，工作区不可编辑。")).toBeVisible();
+  await expect(page.getByText("离线", { exact: true })).toBeVisible();
   await expect(page.getByText("工作区可编辑。")).not.toBeVisible();
 
+  const renewal = page.waitForResponse((response) =>
+    response.url().endsWith("/api/workspace/renew"),
+  );
   await context.setOffline(false);
-  await page.getByRole("button", { name: "恢复后重试" }).click();
+  expect((await renewal).status()).toBe(204);
   await expect(page.getByText("工作区可编辑。")).toBeVisible();
 });

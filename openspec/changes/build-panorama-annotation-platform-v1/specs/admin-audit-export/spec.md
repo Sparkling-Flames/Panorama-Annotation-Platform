@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 管理员查看轻量运营状态
-系统 SHALL 向管理员提供低成本的运营计数，包括完成数、当前活跃工人数、保存失败、结构阻断、skip、媒体错误、事件延迟、修订数和 verification_pending 数量。首版不得自动把这些计数转成工人处罚、tier 或任务难度变更。
+系统 SHALL 向管理员提供低成本的运营计数，包括完成数、当前活跃工人数、保存失败、结构阻断、deferred 暂时跳过、BlockReport、媒体错误、事件延迟、修订数和 verification_pending 数量。首版不得自动把这些计数转成工人处罚、tier 或任务难度变更。
 
 #### Scenario: 管理员打开运营页
 - **WHEN** 管理员访问当前 WorkBatch 的运营视图
@@ -23,22 +23,22 @@
 - **THEN** 系统可复用已有结果并明确指出复用来源
 
 ### Requirement: 复核队列由异常和抽检驱动
-系统 SHALL 为 unresolved scope/geometry、多峰、严重结构问题、OOS 冲突、反复模板化 OOS 原因、画像漂移、系统错误和批次配置的随机抽检建立可筛选复核队列。稳定 OOS 或稳定几何不得被强制逐张人工复核。
+系统 SHALL 为 unresolved scope/portal/geometry、多峰、严重结构问题、scope 与有效结构证据冲突、反复模板化 reason、画像漂移、系统错误和批次配置的随机抽检建立可筛选复核队列。满足冻结 ScopePolicy 自动处置条件或稳定 geometry 的 Task 不得被强制逐张人工复核。
 
 #### Scenario: 达到共识上限仍冲突
 - **WHEN** Task 在 k_max 后状态为 unresolved
 - **THEN** 系统自动创建带输入 Revision、冲突摘要和规则版本的复核项
 
-#### Scenario: 稳定 OOS 未命中抽检
-- **WHEN** Task 达到稳定 OOS 共识且没有其他风险旗标
+#### Scenario: ScopePolicy 自动处置未命中抽检
+- **WHEN** Task 的 representation evidence 满足冻结 ScopePolicy 且没有有效 geometry/portal 冲突或其他风险旗标
 - **THEN** 系统允许其自动 resolved，不要求管理员先点击接受
 
 ### Requirement: 管理员指导与研究证据分离
-管理员 SHALL 能记录一次轻量 GuidanceEvent，包含渠道、worker、batch/task/revision、指导类别、简短摘要、时间、管理员和确认状态。平台不实现完整聊天或微信/Upwork API；指导可在线下渠道进行。收到指导后的 Revision MUST 标记 feedback exposure。
+管理员 SHALL 能向指定工人投递或登记一次轻量 GuidanceEvent，包含渠道、worker、batch/task/revision、指导类别、简短摘要、时间、管理员和确认状态。工人仅可查看并确认与本人关联的 GuidanceEvent；平台不提供工人回复、对话线程、完整聊天或微信/Upwork API。指导可在线下渠道进行并在平台登记摘要。只有目标工人确认后，关联的当前或后续 DraftCycle/Revision 才 MUST 标记 feedback exposure；未确认的投递不得冒充已暴露指导。
 
 #### Scenario: 管理员通过微信指导
 - **WHEN** 管理员在线下完成指导并在平台登记
-- **THEN** 系统保存最小 GuidanceEvent，工人确认后关联后续 DraftCycle，不复制完整聊天内容
+- **THEN** 系统保存最小 GuidanceEvent，仅目标工人可查看和确认，确认后关联后续 DraftCycle，不复制完整聊天内容或创建对话线程
 
 ### Requirement: Audit 只消费冻结输入且不可修改标注
 系统 SHALL 仅运行注册、版本化、经过测试的 AuditRun 类型。每次 AuditRun MUST 绑定输入 Revision/Artifact hash、规则与代码版本并产生不可变 AuditArtifact；Audit 不得修改 Draft、Revision 或交付指针。
@@ -59,7 +59,7 @@
 - **THEN** 记录可追溯到 worker_id、task_id、assignment_id、revision_id、asset_id 和所用 schema/media/version，而非依赖行号或 Label Studio ID
 
 ### Requirement: 平台不处理工资与支付
-首版 SHALL 提供提交数、接受数、OOS、skip、返工和时间等独立统计，但不得计算工资、生成付款决定或集成微信/Upwork 支付。管理员在平台外按图片数量结算。
+首版 SHALL 提供提交数、接受数、各 worker scope observation、deferred 暂时跳过、BlockReport、返工和时间等独立统计，但不得计算工资、生成付款决定或集成微信/Upwork 支付。管理员在平台外按图片数量结算。
 
 #### Scenario: 管理员查看工人统计
 - **WHEN** 管理员打开工人运营摘要

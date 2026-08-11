@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../api";
 
 type MediaRole = "compressed" | "high_resolution";
 type LoadState = "failed" | "loaded" | "loading" | "missing" | "waiting";
 
-type MediaVariant = {
+export type ActiveAssignmentMedia = {
   coordinate_mapping: "normalized_identity";
   height: number;
   media_variant_id: string;
@@ -18,7 +18,7 @@ type MediaPayload = {
   assignment_id: string;
   expires_at: string;
   unavailable_roles: MediaRole[];
-  variants: MediaVariant[];
+  variants: ActiveAssignmentMedia[];
 };
 
 const EMPTY_LOAD_STATE: Record<MediaRole, LoadState> = {
@@ -30,7 +30,13 @@ function variantFor(payload: MediaPayload | null, role: MediaRole) {
   return payload?.variants.find((variant) => variant.role === role);
 }
 
-export function AssignmentMedia({ assignmentId }: { assignmentId: string }) {
+export function AssignmentMedia({
+  assignmentId,
+  children,
+}: {
+  assignmentId: string;
+  children?: (media: ActiveAssignmentMedia, onVisibleError: () => void) => ReactNode;
+}) {
   const currentAssignment = useRef(assignmentId);
   const renewedRoles = useRef(new Set<MediaRole>());
   const [activeRole, setActiveRole] = useState<MediaRole>("compressed");
@@ -85,6 +91,39 @@ export function AssignmentMedia({ assignmentId }: { assignmentId: string }) {
     return () => controller.abort();
   }, [assignmentId, retry]);
 
+  useEffect(() => {
+    if (payload === null) return;
+    const remaining = Date.parse(payload.expires_at) - Date.now();
+    if (!Number.isFinite(remaining)) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(
+      () => {
+        const requestedAssignment = assignmentId;
+        void apiFetch(`/api/worker/assignments/${requestedAssignment}/media`, {
+          signal: controller.signal,
+        })
+          .then(async (response) => {
+            if (!response.ok) return;
+            const next = (await response.json()) as MediaPayload;
+            if (
+              currentAssignment.current === requestedAssignment &&
+              payload.variants.every((variant) => variantFor(next, variant.role))
+            ) {
+              renewedRoles.current.clear();
+              setPayload(next);
+              setDegraded(next.unavailable_roles.length > 0);
+            }
+          })
+          .catch(() => undefined);
+      },
+      Math.max(0, remaining - Math.min(30_000, remaining / 2)),
+    );
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [assignmentId, payload?.expires_at]);
+
   function failRole(role: MediaRole) {
     const otherRole = role === "compressed" ? "high_resolution" : "compressed";
     if (loadState[otherRole] === "failed" || loadState[otherRole] === "missing") {
@@ -127,7 +166,6 @@ export function AssignmentMedia({ assignmentId }: { assignmentId: string }) {
             }
           : current,
       );
-      setLoadState((current) => ({ ...current, [role]: "loading" }));
     } catch {
       if (currentAssignment.current === requestedAssignment) {
         failRole(role);
@@ -178,7 +216,7 @@ export function AssignmentMedia({ assignmentId }: { assignmentId: string }) {
         <img
           alt="当前任务全景图（压缩）"
           crossOrigin="anonymous"
-          hidden={activeRole !== "compressed"}
+          hidden={children !== undefined || activeRole !== "compressed"}
           key={compressed.url}
           onError={() => void renew("compressed")}
           onLoad={() =>
@@ -197,7 +235,7 @@ export function AssignmentMedia({ assignmentId }: { assignmentId: string }) {
         <img
           alt="当前任务全景图（高清）"
           crossOrigin="anonymous"
-          hidden={activeRole !== "high_resolution"}
+          hidden={children !== undefined || activeRole !== "high_resolution"}
           key={high.url}
           onError={() => void renew("high_resolution")}
           onLoad={() => setLoadState((current) => ({ ...current, high_resolution: "loaded" }))}
@@ -215,6 +253,9 @@ export function AssignmentMedia({ assignmentId }: { assignmentId: string }) {
           切换到压缩图
         </button>
       ) : null}
+      {children && activeVariant && loadState[activeRole] === "loaded"
+        ? children(activeVariant, () => void renew(activeRole))
+        : null}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import {
 } from "./activityTracker";
 
 const context = {
+  active_time_rule_version: ACTIVE_TIME_RULE_VERSION,
   assignment_id: "assignment-001",
   client_build_sha: "build-abc123",
   client_session_id: "session-001",
@@ -22,7 +23,7 @@ describe("ActivityTracker", () => {
     vi.useRealTimers();
   });
 
-  it("task 8.1 keeps page-open time inactive and caps a lease after 15 seconds idle", () => {
+  it("PAP-AOF-SC-001 keeps page-open time inactive and caps a lease after 15 seconds idle", () => {
     const events: ClientActivityEvent[] = [];
     const tracker = new ActivityTracker(context, (event) => events.push(event), {
       focus: true,
@@ -37,6 +38,7 @@ describe("ActivityTracker", () => {
     expect(events[0]).toMatchObject({
       ...context,
       active_time_rule_version: ACTIVE_TIME_RULE_VERSION,
+      client_wall_time_ms: expect.any(Number),
       event_type: "interaction",
       focus: true,
       interaction_type: "annotation_2d_edit",
@@ -98,7 +100,7 @@ describe("ActivityTracker", () => {
     tracker.stop();
   });
 
-  it("task 8.1 emits focus and visibility changes immediately and requires a new interaction", () => {
+  it("PAP-AOF-SC-002 emits focus and visibility changes immediately and requires a new interaction", () => {
     const events: ClientActivityEvent[] = [];
     const tracker = new ActivityTracker(context, (event) => events.push(event), {
       focus: true,
@@ -150,7 +152,7 @@ describe("ActivityTracker", () => {
     tracker.stop();
   });
 
-  it("task 8.1 accepts only the specified coarse interactions", () => {
+  it("PAP-AOF-SC-005 accepts only the specified coarse interactions", () => {
     const events: ClientActivityEvent[] = [];
     const tracker = new ActivityTracker(context, (event) => events.push(event), {
       focus: true,

@@ -15,19 +15,76 @@ from .http import (
     request_json,
     request_user,
     require_admin,
+    require_worker,
 )
-from .models import User
+from .models import DataNoticeAcceptance, User
 from .services import (
+    CURRENT_DATA_NOTICE_VERSION,
+    DATA_NOTICE_CATEGORIES,
+    DATA_NOTICE_COPY,
+    NoticeAcceptanceRequired,
     WorkspaceConflict,
     WorkspaceLeaseLost,
+    accept_current_data_notice,
     acquire_worker_workspace,
     create_worker_account,
+    has_current_data_notice,
     record_account_audit,
     renew_worker_workspace,
     reset_worker_password,
     revoke_worker_sessions,
     set_worker_enabled,
 )
+
+
+def data_notice_payload(worker: User) -> dict[str, object]:
+    acceptance = DataNoticeAcceptance.objects.filter(
+        worker=worker,
+        notice_version=CURRENT_DATA_NOTICE_VERSION,
+    ).first()
+    return {
+        "accepted": acceptance is not None,
+        "accepted_at": (
+            None
+            if acceptance is None
+            else acceptance.accepted_at.isoformat().replace("+00:00", "Z")
+        ),
+        "collected_data": list(DATA_NOTICE_CATEGORIES),
+        "copy": DATA_NOTICE_COPY,
+        "notice_version": CURRENT_DATA_NOTICE_VERSION,
+    }
+
+
+@require_GET
+def data_notice_view(request: HttpRequest) -> JsonResponse:
+    worker = require_worker(request)
+    if isinstance(worker, JsonResponse):
+        return worker
+    return JsonResponse(data_notice_payload(worker))
+
+
+@require_POST
+def accept_data_notice_view(request: HttpRequest) -> JsonResponse:
+    worker = require_worker(request)
+    if isinstance(worker, JsonResponse):
+        return worker
+    payload = request_json(request)
+    if payload is None or set(payload) != {"notice_version"}:
+        return error_response("invalid_notice_acceptance", status=400)
+    version = payload.get("notice_version")
+    if not isinstance(version, str):
+        return error_response("invalid_notice_acceptance", status=400)
+    try:
+        acceptance, created = accept_current_data_notice(worker=worker, notice_version=version)
+    except ValueError:
+        return error_response("notice_version_changed", status=409)
+    return JsonResponse(
+        {
+            "accepted_at": acceptance.accepted_at.isoformat().replace("+00:00", "Z"),
+            "notice_version": acceptance.notice_version,
+        },
+        status=201 if created else 200,
+    )
 
 
 def worker_payload(worker: User) -> dict[str, object]:
@@ -84,7 +141,11 @@ def login_view(request: HttpRequest) -> JsonResponse:
     return JsonResponse(
         {
             "must_change_password": user.must_change_password,
-            "workspace_access": user.role == User.Role.WORKER and not user.must_change_password,
+            "workspace_access": (
+                user.role == User.Role.WORKER
+                and not user.must_change_password
+                and has_current_data_notice(user)
+            ),
         }
     )
 
@@ -127,7 +188,9 @@ def workspace_session_view(request: HttpRequest) -> JsonResponse:
         return error_response("authentication_required", status=401)
     if user.must_change_password:
         return error_response("password_change_required", status=403)
-    return JsonResponse({"workspace_access": True})
+    return JsonResponse(
+        {"workspace_access": user.role == User.Role.WORKER and has_current_data_notice(user)}
+    )
 
 
 @require_http_methods(["POST"])
@@ -246,6 +309,8 @@ def acquire_workspace_view(request: HttpRequest) -> JsonResponse:
             tab_id=tab_id,
             takeover=takeover,
         )
+    except NoticeAcceptanceRequired:
+        return error_response("notice_acceptance_required", status=409)
     except WorkspaceConflict as conflict:
         return error_response(conflict.code, status=409)
 
@@ -280,6 +345,8 @@ def renew_workspace_view(request: HttpRequest) -> HttpResponse:
             session_token=request.session.get("active_workspace_token"),
             tab_id=tab_id,
         )
+    except NoticeAcceptanceRequired:
+        return error_response("notice_acceptance_required", status=409)
     except WorkspaceLeaseLost:
         return error_response("workspace_lease_lost", status=409)
     return HttpResponse(status=204)

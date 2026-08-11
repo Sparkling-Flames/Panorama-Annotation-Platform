@@ -9,6 +9,8 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.utils import timezone
+from identity.models import DataNoticeAcceptance
+from identity.services import CURRENT_DATA_NOTICE_VERSION
 
 pytestmark = pytest.mark.django_db
 
@@ -23,6 +25,10 @@ def create_account(*, username: str, role: str) -> Any:
 
 
 def signed_in_client(user: Any) -> Client:
+    if user.role == "worker":
+        DataNoticeAcceptance.objects.get_or_create(
+            worker=user, notice_version=CURRENT_DATA_NOTICE_VERSION
+        )
     client = Client()
     client.force_login(user)
     return client

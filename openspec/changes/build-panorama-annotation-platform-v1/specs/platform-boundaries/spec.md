@@ -1,18 +1,18 @@
 ## ADDED Requirements
 
 ### Requirement: 首版支持桌面 Chrome 与 Edge
-首版浏览器应用 SHALL 正式支持当前受维护的桌面 Chrome 和 Edge，不承诺 Safari、Firefox、移动浏览器或平板。工作区打开前 MUST 预检 WebGL、IndexedDB、必要浏览器 API、媒体可访问性和最低屏幕条件，并给出明确阻断或降级原因。
+首版浏览器应用 SHALL 正式支持当前受维护的桌面 Chrome 和 Edge，不承诺 Safari、Firefox、移动浏览器或平板。工作区打开前 MUST 预检必要浏览器 API、媒体可访问性和最低屏幕条件，并给出明确阻断或降级原因。WebGL 和 IndexedDB 在 Manual 在线 POC 中均不是提交前置；依赖这些能力的 post-POC 功能启用时再按对应功能合同预检。
 
 #### Scenario: 受支持浏览器通过预检
 - **WHEN** 桌面 Chrome/Edge 具备要求的图形和本地存储能力
 - **THEN** 系统允许进入标注工作区并记录 viewer/client/geometry 版本
 
-#### Scenario: WebGL 不可用
-- **WHEN** 设备无法生成首版要求的本地 3D
-- **THEN** 系统阻止 in-scope 生产标注并提示更换设备或浏览器，不静默省略 3D 门槛
+#### Scenario: POC 中 WebGL 不可用
+- **WHEN** 设备无法使用 WebGL，但仍能完成 Manual 在线 POC 的 2D 标注和信息性 `poc-wireframe-v1`
+- **THEN** 系统不以 WebGL 阻止提交；未来只有 Task 明确冻结正式 geometry authority 后，才按该版本合同决定降级或阻断
 
 ### Requirement: 中英文文案和 UTC 时间
-首版 SHALL 提供管理员维护的简体中文和英文文案，不得在运行时依赖机器翻译。工人可选择 locale，Revision 保存 locale/copy_version。服务器时间 MUST 保存为 UTC，界面按用户本地时区展示并明确时区。
+首版 SHALL 提供管理员维护且语义一致的简体中文和英文文案，不得在运行时依赖机器翻译。工人可选择 locale，Revision 保存提交 locale 与对应 copy_version；任一语言文案变化 MUST 形成可追溯的新 copy release，旧 Revision 的解释保持不变。服务器时间 MUST 保存为 UTC，界面按用户本地时区展示并明确时区。
 
 #### Scenario: 世界各地工人提交
 - **WHEN** 不同时区的工人提交 Revision
@@ -33,7 +33,7 @@
 - **THEN** 输入 manifest 不含 IP、无关浏览数据或详细输入内容
 
 ### Requirement: 关键交互与引擎版本可追溯
-Task、Revision、Preview、Activity、Assessment、Consensus、Profile、MetricSnapshot 和 Export SHALL 按适用范围记录 `platform_release_id`、`client_build_sha`、`viewer_version`、`geometry_engine_version`、`interaction_contract_version`、`active_time_rule_version`、schema/copy/model/assist 版本。跨不兼容版本的统计不得静默合并。
+Task、Revision、Preview、Activity、Assessment、Consensus、Profile、MetricSnapshot 和 Export SHALL 只记录对该对象实际适用的 `platform_release_id`、`client_build_sha`、`viewer_version`、`geometry_engine_version`、`interaction_contract_version`、`active_time_rule_version`、schema/copy/model/assist 版本，不得为未启用能力填充占位版本。POC 的本地 PreviewResult 记录自身 `state_sha`、`engine_version` 和 `authority` 即可；这些非权威预览元数据不得为了“贯穿”而复制进 Revision。跨不兼容版本的统计不得静默合并。
 
 #### Scenario: Active-time 规则改变
 - **WHEN** idle 阈值或计时合同发生变化

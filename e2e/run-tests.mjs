@@ -80,6 +80,8 @@ const fixtureCommand = [
   "User.objects.create_user(username='e2e-media-role-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000006'))",
   "User.objects.create_user(username='e2e-assignment-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000007'))",
   "User.objects.create_user(username='e2e-media-delivery-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000008'))",
+  "User.objects.create_user(username='e2e-revision-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000009'))",
+  "User.objects.create_user(username='e2e-offline-worker', password=os.environ['PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD'], role=User.Role.WORKER, must_change_password=False, worker_id=UUID('00000000-0000-4000-8000-000000000010'))",
   "register_media_manifest(payload=E2E_MEDIA_MANIFEST, client=E2ECosClient(), bucket='e2e-controlled-cos')",
 ].join("; ");
 
@@ -194,7 +196,7 @@ try {
   await frontendServer.listen();
 
   const exitCode = await new Promise((resolve, reject) => {
-    const playwright = spawn(process.execPath, [playwrightCli, "test"], {
+    const playwright = spawn(process.execPath, [playwrightCli, "test", ...process.argv.slice(2)], {
       cwd: currentDirectory,
       env: {
         ...process.env,

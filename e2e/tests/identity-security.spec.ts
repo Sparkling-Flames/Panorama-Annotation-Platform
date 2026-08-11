@@ -92,6 +92,18 @@ async function login(page: Page, username: string, password: string): Promise<Ap
   return request(page, "/api/auth/login", "POST", { password, username });
 }
 
+async function acceptCurrentDataNotice(page: Page): Promise<void> {
+  const notice = await request(page, "/api/privacy/notice", "GET");
+  expect(notice.status).toBe(200);
+  expect(notice.body).toMatchObject({ notice_version: expect.any(String) });
+  const noticeVersion = (notice.body as { notice_version: string }).notice_version;
+  const acceptance = await request(page, "/api/privacy/notice/accept", "POST", {
+    notice_version: noticeVersion,
+  });
+  expect([200, 201]).toContain(acceptance.status);
+  expect(acceptance.body).toMatchObject({ notice_version: noticeVersion });
+}
+
 test("browser bootstraps CSRF through the Vite API proxy", async ({ page }) => {
   await page.goto("/");
 
@@ -135,32 +147,32 @@ test("PAP-IAM-SC-003 requires the temporary password to be changed before worksp
 
     const workerPage = await workerContext.newPage();
     await workerPage.goto("/");
-    await expect(
-      login(workerPage, "e2e-first-change-worker", worker.temporary_password),
-    ).resolves.toEqual({
-      body: { must_change_password: true, workspace_access: false },
-      status: 200,
-    });
-    await workerPage.reload();
-    await expect(workerPage.getByText("请先修改临时密码再进入工作区。")).toBeVisible();
+    await workerPage.getByLabel("用户名").fill("e2e-first-change-worker");
+    await workerPage.getByLabel("密码").fill(worker.temporary_password);
+    await workerPage.getByRole("button", { name: "登录" }).click();
+    await expect(workerPage.getByRole("heading", { name: "首次修改密码" })).toBeVisible();
     await expect(request(workerPage, "/api/workspace/session", "GET")).resolves.toEqual({
       body: { error: { code: "password_change_required" } },
       status: 403,
     });
 
-    await expect(
-      request(workerPage, "/api/auth/change-password", "POST", {
-        current_password: worker.temporary_password,
-        new_password: WORKER.changedPassword,
-      }),
-    ).resolves.toEqual({ body: null, status: 204 });
+    await workerPage.getByLabel("当前密码").fill(worker.temporary_password);
+    await workerPage.getByLabel("新密码", { exact: true }).fill(WORKER.changedPassword);
+    await workerPage.getByLabel("确认新密码").fill(WORKER.changedPassword);
+    await workerPage.getByRole("button", { name: "修改密码" }).click();
+    await expect(workerPage.getByRole("heading", { name: "数据告知 / Data notice" })).toBeVisible();
+    await expect(workerPage.getByText("notice_version: data-notice-v1")).toBeVisible();
+    await expect(request(workerPage, "/api/workspace/session", "GET")).resolves.toEqual({
+      body: { workspace_access: false },
+      status: 200,
+    });
+    await workerPage.getByRole("button", { name: "确认并继续 / Accept and continue" }).click();
+    await expect(workerPage.getByRole("region", { name: "工人工作区" })).toBeVisible();
     await expect(request(workerPage, "/api/workspace/session", "GET")).resolves.toEqual({
       body: { workspace_access: true },
       status: 200,
     });
-    await workerPage.reload();
-    await expect(workerPage.getByRole("region", { name: "工人工作区" })).toBeVisible();
-    await expect(workerPage.getByText("请先修改临时密码再进入工作区。")).not.toBeVisible();
+    await expect(workerPage.getByRole("heading", { name: "首次修改密码" })).not.toBeVisible();
 
     const sessionCookie = (await workerContext.cookies()).find(
       (cookie) => cookie.name === "sessionid",
@@ -185,15 +197,16 @@ test("PAP-IAM-SC-011 keeps browser sessions HttpOnly and revokes worker sessions
     const administratorPage = await openBackendPage(administratorContext);
 
     await expect(login(firstWorkerPage, WORKER.username, WORKER.initialPassword)).resolves.toEqual({
-      body: { must_change_password: false, workspace_access: true },
+      body: { must_change_password: false, workspace_access: false },
       status: 200,
     });
     await expect(login(secondWorkerPage, WORKER.username, WORKER.initialPassword)).resolves.toEqual(
       {
-        body: { must_change_password: false, workspace_access: true },
+        body: { must_change_password: false, workspace_access: false },
         status: 200,
       },
     );
+    await acceptCurrentDataNotice(firstWorkerPage);
 
     const sessionCookie = (await firstWorkerContext.cookies(BACKEND_URL)).find(
       (cookie) => cookie.name === "sessionid",
@@ -278,9 +291,10 @@ test("PAP-IAM-REQ-003 rejects unauthenticated and worker access to the admin med
         requiredEnvironment("PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD"),
       ),
     ).resolves.toEqual({
-      body: { must_change_password: false, workspace_access: true },
+      body: { must_change_password: false, workspace_access: false },
       status: 200,
     });
+    await acceptCurrentDataNotice(workerPage);
     await workerPage.reload();
     await expect(
       workerPage.getByRole("heading", { name: "管理员 COS 媒体导入" }),

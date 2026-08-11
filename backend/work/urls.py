@@ -1,15 +1,90 @@
 from django.urls import path
 
-from . import views
+from . import media_workflows, views
 
 urlpatterns = [
+    path(
+        "admin/analysis-jobs/metrics",
+        views.admin_analysis_job_metrics_view,
+        name="admin-analysis-job-metrics",
+    ),
+    path(
+        "admin/audit-runs/<uuid:run_id>",
+        views.admin_audit_run_view,
+        name="admin-audit-run",
+    ),
+    path(
+        "admin/predictions/preview",
+        views.admin_prediction_preview_view,
+        name="admin-prediction-preview",
+    ),
+    path(
+        "admin/predictions/<uuid:preview_id>/publish",
+        views.admin_prediction_publish_view,
+        name="admin-prediction-publish",
+    ),
+    path(
+        "admin/media/imports/publish",
+        media_workflows.import_publish_view,
+        name="media-import-publish",
+    ),
     path("admin/work-batches", views.admin_work_batches_view, name="admin-work-batches"),
+    path(
+        "admin/work-batches/<uuid:batch_id>/operations",
+        views.admin_batch_operations_view,
+        name="admin-batch-operations",
+    ),
+    path(
+        "admin/work-batches/<uuid:batch_id>/metric-snapshots",
+        views.admin_batch_metric_snapshots_view,
+        name="admin-batch-metric-snapshots",
+    ),
+    path(
+        "admin/work-batches/<uuid:batch_id>/exports",
+        views.admin_batch_exports_view,
+        name="admin-batch-exports",
+    ),
+    path(
+        "admin/batch-exports/<uuid:export_id>",
+        views.admin_batch_export_view,
+        name="admin-batch-export",
+    ),
+    path(
+        "admin/work-batches/<uuid:batch_id>/freeze",
+        views.admin_batch_freeze_view,
+        name="admin-batch-freeze",
+    ),
+    path(
+        "admin/work-batches/<uuid:batch_id>/reopen",
+        views.admin_batch_reopen_view,
+        name="admin-batch-reopen",
+    ),
     path(
         "admin/work-batches/<uuid:batch_id>/assignments",
         views.admin_batch_assignments_view,
         name="admin-batch-assignments",
     ),
     path("worker/batches", views.worker_batches_view, name="worker-batches"),
+    path(
+        "worker/rework-requests",
+        views.worker_rework_requests_view,
+        name="worker-rework-requests",
+    ),
+    path(
+        "worker/guidance-events",
+        views.worker_guidance_events_view,
+        name="worker-guidance-events",
+    ),
+    path(
+        "worker/guidance-events/<uuid:guidance_id>/acknowledge",
+        views.worker_guidance_event_acknowledge_view,
+        name="worker-guidance-event-acknowledge",
+    ),
+    path(
+        "worker/rework-requests/<uuid:request_id>/accept",
+        views.worker_rework_request_accept_view,
+        name="worker-rework-request-accept",
+    ),
     path(
         "worker/batches/<uuid:batch_id>/assignments",
         views.worker_batch_assignments_view,
@@ -21,6 +96,11 @@ urlpatterns = [
         name="worker-assignment",
     ),
     path(
+        "worker/assignments/<uuid:assignment_id>/media",
+        media_workflows.worker_assignment_media_view,
+        name="worker-assignment-media",
+    ),
+    path(
         "worker/assignments/<uuid:assignment_id>/open",
         views.worker_assignment_open_view,
         name="worker-assignment-open",
@@ -29,5 +109,70 @@ urlpatterns = [
         "worker/assignments/<uuid:assignment_id>/queue-state",
         views.worker_assignment_queue_state_view,
         name="worker-assignment-queue-state",
+    ),
+    path(
+        "worker/assignments/<uuid:assignment_id>/draft",
+        views.worker_assignment_draft_view,
+        name="worker-assignment-draft",
+    ),
+    path(
+        "worker/assignments/<uuid:assignment_id>/submit",
+        views.worker_assignment_submit_view,
+        name="worker-assignment-submit",
+    ),
+    path(
+        "worker/assignments/<uuid:assignment_id>/assist-candidate",
+        views.worker_assignment_assist_candidate_view,
+        name="worker-assignment-assist-candidate",
+    ),
+    path(
+        "worker/assignments/<uuid:assignment_id>/revise",
+        views.worker_assignment_revise_view,
+        name="worker-assignment-revise",
+    ),
+    path(
+        "worker/assignments/<uuid:assignment_id>/block",
+        views.worker_assignment_block_view,
+        name="worker-assignment-block",
+    ),
+    path(
+        "admin/assignments/<uuid:assignment_id>/block-disposition",
+        views.admin_block_disposition_view,
+        name="admin-block-disposition",
+    ),
+    path(
+        "admin/assignments/<uuid:assignment_id>/guidance-events",
+        views.admin_assignment_guidance_events_view,
+        name="admin-assignment-guidance-events",
+    ),
+    path(
+        "admin/revisions/<uuid:revision_id>",
+        views.admin_revision_view,
+        name="admin-revision",
+    ),
+    path(
+        "admin/revisions/<uuid:revision_id>/audit-runs",
+        views.admin_revision_audit_runs_view,
+        name="admin-revision-audit-runs",
+    ),
+    path(
+        "admin/revisions/<uuid:revision_id>/review",
+        views.admin_revision_review_view,
+        name="admin-revision-review",
+    ),
+    path(
+        "admin/revisions/<uuid:revision_id>/rework-request",
+        views.admin_revision_rework_request_view,
+        name="admin-revision-rework-request",
+    ),
+    path(
+        "admin/tasks/<uuid:task_id>/adjudications",
+        views.admin_task_adjudications_view,
+        name="admin-task-adjudications",
+    ),
+    path(
+        "admin/tasks/<uuid:task_id>/delivery-selection",
+        views.admin_task_delivery_selection_view,
+        name="admin-task-delivery-selection",
     ),
 ]

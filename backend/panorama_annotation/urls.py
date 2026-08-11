@@ -8,6 +8,7 @@ def health(_request: HttpRequest) -> JsonResponse:
 
 urlpatterns = [
     path("api/health", health, name="health"),
+    path("api/", include("activity.urls")),
     path("api/", include("identity.urls")),
     path("api/", include("media.urls")),
     path("api/", include("work.urls")),

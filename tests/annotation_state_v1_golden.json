@@ -1,0 +1,38 @@
+{
+  "canonical_json": "{\"difficulty\":[\"occlusion\",\"reflection\"],\"geometry_attempt_reason_text\":\"\",\"geometry_attempt_status\":\"partial\",\"pairs\":[{\"bottom\":{\"point_id\":\"00000000-0000-4000-8000-000000000004\",\"u\":0,\"v\":1},\"order_index\":0,\"pair_id\":\"00000000-0000-4000-8000-000000000001\",\"top\":{\"point_id\":\"00000000-0000-4000-8000-000000000003\",\"u\":1e-7,\"v\":0.000001}}],\"portals\":[{\"evidence_status\":\"ambiguous\",\"geometry\":{\"bottom_left\":{\"u\":0.98,\"v\":0.8},\"bottom_right\":{\"u\":0.02,\"v\":0.8},\"top_left\":{\"u\":0.98,\"v\":0.3},\"top_right\":{\"u\":0.02,\"v\":0.3}},\"host_edge_ref\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"architectural_opening\",\"portal_id\":\"00000000-0000-4000-8000-000000000007\"}],\"seam_anchor_pair_id\":\"00000000-0000-4000-8000-000000000001\",\"scope_reason_codes\":[\"portal_ambiguous\",\"insufficient_evidence\"],\"scope_reason_text\":\"\",\"worker_scope_observation\":\"needs_scope_review\",\"model_issue\":[\"underextend\",\"corner_drift\"]}",
+  "difficulty_order": ["trivial", "occlusion", "low_texture", "seam", "reflection", "low_quality"],
+  "model_issue_order": ["acceptable", "overextend_adjacent", "underextend", "over_parsing", "corner_drift", "corner_duplicate", "topology_failure", "fail"],
+  "state": {
+    "difficulty": ["reflection", "occlusion"],
+    "geometry_attempt_reason_text": "",
+    "geometry_attempt_status": "partial",
+    "model_issue": ["corner_drift", "underextend"],
+    "pairs": [
+      {
+        "bottom": { "point_id": "00000000-0000-4000-8000-000000000004", "u": 0.0, "v": 1.0 },
+        "order_index": 0,
+        "pair_id": "00000000-0000-4000-8000-000000000001",
+        "top": { "point_id": "00000000-0000-4000-8000-000000000003", "u": 1e-7, "v": 1e-6 }
+      }
+    ],
+    "portals": [
+      {
+        "evidence_status": "ambiguous",
+        "geometry": {
+          "bottom_left": { "u": 0.98, "v": 0.8 },
+          "bottom_right": { "u": 0.02, "v": 0.8 },
+          "top_left": { "u": 0.98, "v": 0.3 },
+          "top_right": { "u": 0.02, "v": 0.3 }
+        },
+        "host_edge_ref": "00000000-0000-4000-8000-000000000001",
+        "kind": "architectural_opening",
+        "portal_id": "00000000-0000-4000-8000-000000000007"
+      }
+    ],
+    "seam_anchor_pair_id": "00000000-0000-4000-8000-000000000001",
+    "scope_reason_codes": ["insufficient_evidence", "portal_ambiguous"],
+    "scope_reason_text": "",
+    "worker_scope_observation": "needs_scope_review"
+  },
+  "state_sha": "45dfbdaed700d934528e328480a7e02c128056c3ae487f21b2f47df3a05f222e"
+}

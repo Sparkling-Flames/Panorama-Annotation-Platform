@@ -9,7 +9,7 @@ from qcloud_cos import CosConfig, CosS3Client
 from qcloud_cos.cos_exception import CosClientError, CosServiceError
 
 from .formats import media_format
-from .models import MediaObjectRegistration
+from .models import MediaObjectRegistration, MediaVariant
 
 
 class CosCatalogUnavailable(Exception):
@@ -51,6 +51,22 @@ class MediaCatalog(Protocol):
     def list_candidates(self, *, prefix: str, marker: str | None) -> MediaCatalogPage: ...
 
     def get_candidate(self, *, source_key: str) -> MediaCatalogCandidate: ...
+
+
+def candidate_matches_variant(
+    candidate: MediaCatalogCandidate,
+    variant: MediaVariant,
+) -> bool:
+    return (
+        candidate.source_key == variant.source_key
+        and candidate.version_id == variant.object_version
+        and candidate.content_sha256 == variant.content_sha256
+        and candidate.content_length == variant.content_length
+        and candidate.crc64ecma == variant.content_crc64ecma
+        and candidate.width == variant.width
+        and candidate.height == variant.height
+        and candidate.format == variant.format
+    )
 
 
 class TencentCosCatalog:

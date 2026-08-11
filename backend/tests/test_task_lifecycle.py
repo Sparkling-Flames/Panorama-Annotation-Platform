@@ -9,7 +9,8 @@ from django.db import DatabaseError, IntegrityError, transaction
 from django.utils import timezone
 from identity.models import User
 from media.models import Asset, MediaImportPreview, MediaVariant
-from work.models import Assignment, Task, TaskMediaVariant
+from work.meta_schema import META_COPY_V1, META_SCHEMA_V1
+from work.models import Assignment, BlockReport, Task, TaskMediaVariant
 from work.services import (
     assign_task,
     cancel_task,
@@ -79,6 +80,8 @@ def test_pap_tba_sc_002_published_display_contract_and_media_are_database_immuta
     assert task.prediction_exposed is False
     assert task.model_issue_enabled is False
     assert task.assist_enabled is False
+    assert task.meta_schema_version == META_SCHEMA_V1
+    assert task.meta_copy_version == META_COPY_V1
 
     with pytest.raises(DatabaseError), transaction.atomic():
         Task.objects.filter(pk=task.pk).update(prediction_exposed=True)
@@ -309,6 +312,41 @@ def test_task_4_5_stale_task_instance_cannot_create_assignment_after_cancellatio
     assert not Assignment.objects.filter(task=task, worker=assigned_worker).exists()
 
 
+def test_assignment_identity_and_order_cannot_be_rewritten_after_creation() -> None:
+    task = published_manual_task("immutable-assignment")
+    assignment = assign_task(
+        batch=create_work_batch(name="Immutable assignment batch"),
+        task=task,
+        worker=User.objects.create_user(
+            username="immutable-assignment-worker",
+            role=User.Role.WORKER,
+            must_change_password=False,
+        ),
+    )
+    replacement_batch = create_work_batch(name="Replacement assignment batch")
+    replacement_task = published_manual_task("immutable-assignment-replacement")
+    replacement_worker = User.objects.create_user(
+        username="immutable-assignment-replacement-worker",
+        role=User.Role.WORKER,
+        must_change_password=False,
+    )
+
+    for rewritten_field in (
+        {"batch_id": replacement_batch.batch_id},
+        {"order_index": 99},
+        {"task_id": replacement_task.task_id},
+        {"worker_id": replacement_worker.pk},
+    ):
+        with pytest.raises(DatabaseError), transaction.atomic():
+            Assignment.objects.filter(pk=assignment.pk).update(**rewritten_field)
+
+    assignment.refresh_from_db()
+    assert assignment.batch_id != replacement_batch.batch_id
+    assert assignment.order_index == 0
+    assert assignment.task_id != replacement_task.task_id
+    assert assignment.worker_id != replacement_worker.pk
+
+
 def test_pap_tba_sc_004_task_termination_revokes_unfinished_assignments() -> None:
     cancelled_task = published_manual_task("cancel-assignment")
     superseded_task = published_manual_task("supersede-assignment")
@@ -320,7 +358,7 @@ def test_pap_tba_sc_004_task_termination_revokes_unfinished_assignments() -> Non
             role=User.Role.WORKER,
             must_change_password=False,
         )
-        for index in range(2)
+        for index in range(3)
     ]
     cancelled_assignment = assign_task(
         batch=batch,
@@ -334,6 +372,20 @@ def test_pap_tba_sc_004_task_termination_revokes_unfinished_assignments() -> Non
     )
     superseded_assignment.work_state = Assignment.WorkState.IN_PROGRESS
     superseded_assignment.save(update_fields=["updated_at", "work_state"])
+    blocked_assignment = assign_task(
+        batch=batch,
+        task=cancelled_task,
+        worker=workers[2],
+    )
+    block_report = BlockReport.objects.create(
+        assignment=blocked_assignment,
+        worker=workers[2],
+        reason_schema_version="assignment-block-v1",
+        reason_code=BlockReport.ReasonCode.TECHNICAL_FAILURE,
+        reason_text="The source image cannot be decoded.",
+    )
+    blocked_assignment.work_state = Assignment.WorkState.BLOCKED
+    blocked_assignment.save(update_fields=["updated_at", "work_state"])
 
     cancel_task(task_id=cancelled_task.task_id, reason="contract withdrawn")
     supersede_task(
@@ -344,8 +396,11 @@ def test_pap_tba_sc_004_task_termination_revokes_unfinished_assignments() -> Non
 
     cancelled_assignment.refresh_from_db()
     superseded_assignment.refresh_from_db()
+    blocked_assignment.refresh_from_db()
     assert cancelled_assignment.work_state == Assignment.WorkState.REVOKED
     assert superseded_assignment.work_state == Assignment.WorkState.REVOKED
+    assert blocked_assignment.work_state == Assignment.WorkState.REVOKED
+    assert BlockReport.objects.filter(pk=block_report.pk).exists()
     assert cancelled_assignment.review_state == Assignment.ReviewState.UNREVIEWED
     assert superseded_assignment.review_state == Assignment.ReviewState.UNREVIEWED
 
@@ -379,22 +434,28 @@ def test_new_round_reuses_asset_but_creates_a_new_idempotent_task_contract() -> 
             plan={"round": suffix},
             plan_sha256=suffix * 64,
             expires_at=timezone.now() + timedelta(minutes=15),
+            publication_created_asset=False,
+            published_asset=asset,
+            published_at=timezone.now(),
         )
 
     first_preview = stored_preview("a")
     second_preview = stored_preview("b")
 
     first_round = create_manual_annotation_round(
+        actor=actor,
         source_preview_id=first_preview.preview_id,
         asset=asset,
         media_variants=variants,
     )
     retry = create_manual_annotation_round(
+        actor=actor,
         source_preview_id=first_preview.preview_id,
         asset=asset,
         media_variants=variants,
     )
     second_round = create_manual_annotation_round(
+        actor=actor,
         source_preview_id=second_preview.preview_id,
         asset=asset,
         media_variants=variants,
@@ -405,3 +466,48 @@ def test_new_round_reuses_asset_but_creates_a_new_idempotent_task_contract() -> 
     assert second_round.asset_id == first_round.asset_id == asset.asset_id
     assert second_round.previous_round_task_id == first_round.task_id
     assert first_round.status == second_round.status == Task.Status.PUBLISHED
+
+
+def test_manual_annotation_round_requires_its_published_preview_asset() -> None:
+    asset, variants = media_contract("round-source")
+    other_asset, _other_variants = media_contract("round-other")
+    actor = User.objects.create_user(username="round-source-admin", role=User.Role.ADMIN)
+
+    unpublished = MediaImportPreview.objects.create(
+        actor=actor,
+        plan={"round": "unpublished"},
+        plan_sha256="c" * 64,
+        expires_at=timezone.now() + timedelta(minutes=15),
+    )
+    cancelled = MediaImportPreview.objects.create(
+        actor=actor,
+        plan={"round": "cancelled"},
+        plan_sha256="d" * 64,
+        expires_at=timezone.now() + timedelta(minutes=15),
+        cancelled_at=timezone.now(),
+    )
+    mismatched = MediaImportPreview.objects.create(
+        actor=actor,
+        plan={"round": "mismatched"},
+        plan_sha256="e" * 64,
+        expires_at=timezone.now() + timedelta(minutes=15),
+        publication_created_asset=False,
+        published_asset=other_asset,
+        published_at=timezone.now(),
+    )
+
+    for preview, code in (
+        (unpublished, "media_preview_unpublished"),
+        (cancelled, "media_preview_cancelled"),
+        (mismatched, "media_preview_asset_mismatch"),
+    ):
+        with pytest.raises(ValidationError) as denial:
+            create_manual_annotation_round(
+                actor=actor,
+                source_preview_id=preview.preview_id,
+                asset=asset,
+                media_variants=variants,
+            )
+        assert denial.value.code == code
+
+    assert Task.objects.count() == 0

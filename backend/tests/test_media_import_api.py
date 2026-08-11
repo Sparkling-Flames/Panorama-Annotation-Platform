@@ -10,6 +10,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import Client
+from identity.models import AuditEvent
 
 pytestmark = pytest.mark.django_db
 
@@ -26,6 +27,15 @@ def media_catalog() -> Any:
 
 def media_views() -> Any:
     return importlib.import_module("media.views")
+
+
+def media_workflows() -> Any:
+    return importlib.import_module("work.media_workflows")
+
+
+def set_catalog(monkeypatch: pytest.MonkeyPatch, catalog: Any) -> None:
+    monkeypatch.setattr(media_views(), "get_cos_catalog", catalog)
+    monkeypatch.setattr(media_workflows(), "get_cos_catalog", catalog)
 
 
 def create_admin_client(*, username: str = "media-administrator") -> Client:
@@ -125,9 +135,8 @@ def publication_request(preview: dict[str, object]) -> bytes:
 def test_pap_mid_sc_005_sc_006_admin_imports_media_and_creates_explicit_rounds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
     catalog = catalog_with_warehouse_candidates()
-    monkeypatch.setattr(views, "get_cos_catalog", lambda: catalog)
+    set_catalog(monkeypatch, lambda: catalog)
     client = create_admin_client()
 
     browse_response = client.get("/api/admin/media/candidates?prefix=incoming/warehouse-001")
@@ -272,19 +281,28 @@ def test_pap_mid_sc_005_sc_006_admin_imports_media_and_creates_explicit_rounds(
     assert models.MediaVariant.objects.count() == 2
     work_models = importlib.import_module("work.models")
     assert work_models.Task.objects.filter(asset_id=first_payload["asset_id"]).count() == 2
+    publication_audits = list(
+        AuditEvent.objects.filter(action="task.published").order_by("created_at")
+    )
+    assert [event.target_id for event in publication_audits] == [
+        first_round["task_id"],
+        second_payload["annotation_round"]["task_id"],
+    ]
+    assert {event.target_type for event in publication_audits} == {"task"}
+    assert {event.reason for event in publication_audits} == {"media_import_annotation_round"}
 
 
 def test_media_and_round_publication_roll_back_together_when_task_creation_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
-    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
-    create_round = views.create_manual_annotation_round
+    set_catalog(monkeypatch, catalog_with_warehouse_candidates)
+    workflows = media_workflows()
+    create_round = workflows.create_manual_annotation_round
 
     def reject_round_creation(**_kwargs: object) -> None:
         raise ValidationError("Task creation failed.", code="task_creation_failed")
 
-    monkeypatch.setattr(views, "create_manual_annotation_round", reject_round_creation)
+    monkeypatch.setattr(workflows, "create_manual_annotation_round", reject_round_creation)
     client = create_admin_client()
     preview = client.post(
         "/api/admin/media/imports/preview",
@@ -307,7 +325,7 @@ def test_media_and_round_publication_roll_back_together_when_task_creation_fails
     assert models.Asset.objects.count() == 0
     assert models.MediaVariant.objects.count() == 0
 
-    monkeypatch.setattr(views, "create_manual_annotation_round", create_round)
+    monkeypatch.setattr(workflows, "create_manual_annotation_round", create_round)
     retry = client.post(
         "/api/admin/media/imports/publish",
         data=publication_request(preview),
@@ -326,8 +344,7 @@ def test_media_and_round_publication_roll_back_together_when_task_creation_fails
 def test_media_publish_accepts_only_a_frozen_preview_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
-    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
+    set_catalog(monkeypatch, catalog_with_warehouse_candidates)
     client = create_admin_client()
     preview = client.post(
         "/api/admin/media/imports/preview",
@@ -407,9 +424,8 @@ def test_pap_mid_sc_004_media_import_api_rejects_a_skybox_face_set() -> None:
 def test_pap_mid_sc_002_media_publish_rejects_cos_metadata_changed_after_preview(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
     catalog = catalog_with_warehouse_candidates()
-    monkeypatch.setattr(views, "get_cos_catalog", lambda: catalog)
+    set_catalog(monkeypatch, lambda: catalog)
     client = create_admin_client()
     preview = client.post(
         "/api/admin/media/imports/preview",
@@ -433,7 +449,6 @@ def test_pap_mid_sc_002_media_publish_rejects_cos_metadata_changed_after_preview
 def test_media_import_api_maps_registered_cos_integrity_drift_to_conflict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
     module = media_catalog()
 
     class IntegrityConflictCatalog:
@@ -444,7 +459,7 @@ def test_media_import_api_maps_registered_cos_integrity_drift_to_conflict(
             raise module.MediaCandidateIntegrityConflict
 
     client = create_admin_client()
-    monkeypatch.setattr(views, "get_cos_catalog", IntegrityConflictCatalog)
+    set_catalog(monkeypatch, IntegrityConflictCatalog)
 
     browse_response = client.get("/api/admin/media/candidates")
     preview_response = client.post(
@@ -459,13 +474,13 @@ def test_media_import_api_maps_registered_cos_integrity_drift_to_conflict(
     assert browse_response.json() == expected_error
     assert preview_response.json() == expected_error
 
-    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
+    set_catalog(monkeypatch, catalog_with_warehouse_candidates)
     preview = client.post(
         "/api/admin/media/imports/preview",
         data=request_payload(),
         content_type="application/json",
     ).json()
-    monkeypatch.setattr(views, "get_cos_catalog", IntegrityConflictCatalog)
+    set_catalog(monkeypatch, IntegrityConflictCatalog)
 
     publish_response = client.post(
         "/api/admin/media/imports/publish",
@@ -480,8 +495,7 @@ def test_media_import_api_maps_registered_cos_integrity_drift_to_conflict(
 def test_media_preview_can_only_be_published_by_its_owner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
-    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
+    set_catalog(monkeypatch, catalog_with_warehouse_candidates)
     owner = create_admin_client(username="preview-owner")
     other_admin = create_admin_client(username="other-admin")
     preview = owner.post(
@@ -503,8 +517,7 @@ def test_media_preview_can_only_be_published_by_its_owner(
 def test_expired_media_preview_cannot_be_published(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
-    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
+    set_catalog(monkeypatch, catalog_with_warehouse_candidates)
     client = create_admin_client()
     preview = client.post(
         "/api/admin/media/imports/preview",
@@ -529,8 +542,7 @@ def test_expired_media_preview_cannot_be_published(
 def test_pap_mid_sc_007_cancelled_media_preview_cannot_publish_or_create_an_asset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
-    monkeypatch.setattr(views, "get_cos_catalog", catalog_with_warehouse_candidates)
+    set_catalog(monkeypatch, catalog_with_warehouse_candidates)
     client = create_admin_client()
     preview = client.post(
         "/api/admin/media/imports/preview",
@@ -577,9 +589,8 @@ def test_media_import_conflicts_have_stable_codes_and_leave_no_partial_data(
     second_high_hash: str,
     error_code: str,
 ) -> None:
-    views = media_views()
     catalog = catalog_with_warehouse_candidates()
-    monkeypatch.setattr(views, "get_cos_catalog", lambda: catalog)
+    set_catalog(monkeypatch, lambda: catalog)
     client = create_admin_client()
     first_preview = client.post(
         "/api/admin/media/imports/preview",
@@ -623,9 +634,8 @@ def test_media_import_conflicts_have_stable_codes_and_leave_no_partial_data(
 def test_media_import_api_appends_a_new_same_role_variant_to_an_existing_asset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    views = media_views()
     catalog = catalog_with_warehouse_candidates()
-    monkeypatch.setattr(views, "get_cos_catalog", lambda: catalog)
+    set_catalog(monkeypatch, lambda: catalog)
     client = create_admin_client()
     first_preview = client.post(
         "/api/admin/media/imports/preview",

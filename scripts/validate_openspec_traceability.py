@@ -26,7 +26,7 @@ CAPABILITY_METADATA = {
     "platform-boundaries": ("PBD", ["13"]),
     "prediction-assist": ("PAS", ["9"]),
     "preview-validation": ("PRV", ["7"]),
-    "task-batch-assignment": ("TBA", ["4"]),
+    "task-batch-assignment": ("TBA", ["4", "11"]),
 }
 
 

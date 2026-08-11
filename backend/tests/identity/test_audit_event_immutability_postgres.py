@@ -20,7 +20,10 @@ def audit_event() -> AuditEvent:
     return AuditEvent.objects.create(
         actor=actor,
         target_worker=worker,
+        target_type="worker",
+        target_id=str(worker.worker_id),
         action="worker.created",
+        reason="test",
         details={"reason": "test"},
     )
 

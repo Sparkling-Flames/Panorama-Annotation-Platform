@@ -11,14 +11,26 @@ import {
   type AnnotationPoint,
   type AnnotationPointPair,
   type AnnotationState,
+  type MetaContract,
 } from "../annotationState";
+import { AnnotationContractFields } from "./AnnotationContractFields";
+import { PortalEditor } from "./PortalEditor";
+import type { SupportedLocale } from "../locale";
 
 type AnnotationEditorProps = {
+  backgroundImageUrl?: string;
+  disabled?: boolean;
   initialState: AnnotationState;
+  initialHistory?: AnnotationHistory;
+  locale?: SupportedLocale;
+  metaContract?: MetaContract;
+  onBackgroundImageError?: () => void;
   onChange?: (state: AnnotationState) => void;
+  onHistoryChange?: (history: AnnotationHistory) => void;
+  onTransientEditingChange?: (editing: boolean) => void;
 };
 
-type History = {
+export type AnnotationHistory = {
   future: AnnotationState[];
   past: AnnotationState[];
   present: AnnotationState;
@@ -33,7 +45,6 @@ type DragPoint = NormalizedPoint & {
   point: PointKey;
   pointerId: number;
 };
-
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 500;
 const MAX_U = 0.9999999999999999;
@@ -88,13 +99,23 @@ function updatePoint(
   };
 }
 
-export function AnnotationEditor({ initialState, onChange }: AnnotationEditorProps) {
-  const [history, setHistory] = useState<History>({
-    future: [],
-    past: [],
-    present: initialState,
-  });
+export function AnnotationEditor({
+  backgroundImageUrl,
+  disabled = false,
+  initialState,
+  locale = "zh-CN",
+  initialHistory,
+  metaContract,
+  onBackgroundImageError,
+  onChange,
+  onHistoryChange,
+  onTransientEditingChange,
+}: AnnotationEditorProps) {
+  const [history, setHistory] = useState<AnnotationHistory>(
+    initialHistory ?? { future: [], past: [], present: initialState },
+  );
   const [pendingPair, setPendingPair] = useState<PendingPair | null>(null);
+  const [portalEditing, setPortalEditing] = useState(false);
   const [dragPreview, setDragPreview] = useState<DragPoint | null>(null);
   const [stateSha, setStateSha] = useState("");
   const drag = useRef<DragPoint | null>(null);
@@ -103,13 +124,20 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
   const state = history.present;
   onChangeRef.current = onChange;
 
+  useEffect(
+    () => onTransientEditingChange?.(pendingPair !== null || portalEditing),
+    [onTransientEditingChange, pendingPair, portalEditing],
+  );
+
+  useEffect(() => onHistoryChange?.(history), [history, onHistoryChange]);
+
   useEffect(() => {
     if (lastReportedState.current !== state) {
       lastReportedState.current = state;
       onChangeRef.current?.(state);
     }
     let active = true;
-    void annotationStateSha(state).then((sha) => {
+    void annotationStateSha(state, metaContract).then((sha) => {
       if (active) {
         setStateSha(sha);
       }
@@ -117,9 +145,10 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
     return () => {
       active = false;
     };
-  }, [state]);
+  }, [metaContract, state]);
 
   function commit(update: (current: AnnotationState) => AnnotationState): void {
+    if (disabled) return;
     setHistory((current) => {
       const present = update(current.present);
       return present === current.present
@@ -152,15 +181,16 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
 
   function deletePair(pairId: string): void {
     commit((current) => {
-      if (current.pairs.length === 1) {
-        return current;
-      }
       const pairs = reindex(current.pairs.filter((pair) => pair.pair_id !== pairId));
       return {
+        ...current,
         pairs,
+        portals: current.portals.map((portal) =>
+          portal.host_edge_ref === pairId ? { ...portal, host_edge_ref: null } : portal,
+        ),
         seam_anchor_pair_id: pairs.some((pair) => pair.pair_id === current.seam_anchor_pair_id)
           ? current.seam_anchor_pair_id
-          : pairs[0].pair_id,
+          : (pairs[0]?.pair_id ?? null),
       };
     });
   }
@@ -209,7 +239,7 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
     point: PointKey,
     coordinates: NormalizedPoint,
   ): void {
-    if (pendingPair !== null) {
+    if (disabled || pendingPair !== null) {
       return;
     }
     event.stopPropagation();
@@ -253,7 +283,7 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
   }
 
   function addPoint(event: ReactMouseEvent<SVGSVGElement>): void {
-    if (pendingPair === null) {
+    if (disabled || pendingPair === null) {
       return;
     }
     const point = normalizedPoint(event);
@@ -265,10 +295,14 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
       return;
     }
     const top = pendingPair.top;
-    commit((current) => ({
-      ...current,
-      pairs: [...current.pairs, newPair(current.pairs.length, top, point)],
-    }));
+    commit((current) => {
+      const pair = newPair(current.pairs.length, top, point);
+      return {
+        ...current,
+        pairs: [...current.pairs, pair],
+        seam_anchor_pair_id: current.seam_anchor_pair_id ?? pair.pair_id,
+      };
+    });
     setPendingPair(null);
   }
 
@@ -281,161 +315,194 @@ export function AnnotationEditor({ initialState, onChange }: AnnotationEditorPro
   return (
     <section aria-label="2D 角点对编辑器">
       <h2>2D 角点对编辑器</h2>
-      <div>
-        <button
-          disabled={history.past.length === 0 || pendingPair !== null}
-          onClick={undo}
-          type="button"
-        >
-          撤销
-        </button>
-        <button
-          disabled={history.future.length === 0 || pendingPair !== null}
-          onClick={redo}
-          type="button"
-        >
-          重做
-        </button>
-        <button disabled={pendingPair !== null} onClick={() => setPendingPair({})} type="button">
-          添加角点对
-        </button>
-        {pendingPair !== null ? (
-          <button onClick={() => setPendingPair(null)} type="button">
-            取消添加
+      <fieldset disabled={disabled} style={{ border: 0, margin: 0, padding: 0 }}>
+        <div>
+          <button
+            disabled={history.past.length === 0 || pendingPair !== null}
+            onClick={undo}
+            type="button"
+          >
+            撤销
           </button>
+          <button
+            disabled={history.future.length === 0 || pendingPair !== null}
+            onClick={redo}
+            type="button"
+          >
+            重做
+          </button>
+          <button disabled={pendingPair !== null} onClick={() => setPendingPair({})} type="button">
+            添加角点对
+          </button>
+          {pendingPair !== null ? (
+            <button onClick={() => setPendingPair(null)} type="button">
+              取消添加
+            </button>
+          ) : null}
+        </div>
+        <AnnotationContractFields
+          contract={metaContract}
+          locale={locale}
+          onChange={(next) => commit(() => next)}
+          state={state}
+        />
+        {pendingPair !== null ? (
+          <p>{pendingPair.top === undefined ? "请在画布点选顶点。" : "请在画布点选底点。"}</p>
         ) : null}
-      </div>
-      {pendingPair !== null ? (
-        <p>{pendingPair.top === undefined ? "请在画布点选顶点。" : "请在画布点选底点。"}</p>
-      ) : null}
-      <svg
-        aria-label="全景规范化坐标编辑区"
-        onClick={addPoint}
-        onPointerCancel={cancelDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={finishDrag}
-        role="application"
-        style={{ border: "1px solid currentColor", touchAction: "none", width: "100%" }}
-        viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-      >
-        <rect fill="#eef2ef" height={CANVAS_HEIGHT} width={CANVAS_WIDTH} />
-        {state.pairs.map((pair, index) => {
-          const top = displayedPoint(pair, "top");
-          const bottom = displayedPoint(pair, "bottom");
-          return (
-            <g key={pair.pair_id}>
-              <line
-                stroke="#285b46"
-                strokeWidth="3"
-                x1={top.u * CANVAS_WIDTH}
-                x2={bottom.u * CANVAS_WIDTH}
-                y1={top.v * CANVAS_HEIGHT}
-                y2={bottom.v * CANVAS_HEIGHT}
-              />
-              <circle
-                aria-label={`第 ${index + 1} 对顶点`}
-                cx={top.u * CANVAS_WIDTH}
-                cy={top.v * CANVAS_HEIGHT}
-                fill="#2f6fed"
-                onPointerDown={(event) =>
-                  startDrag(event, pair.pair_id, "top", { u: top.u, v: top.v })
-                }
-                onLostPointerCapture={cancelDrag}
-                r="11"
-                role="button"
-                tabIndex={0}
-              />
-              <circle
-                aria-label={`第 ${index + 1} 对底点`}
-                cx={bottom.u * CANVAS_WIDTH}
-                cy={bottom.v * CANVAS_HEIGHT}
-                fill="#d74c31"
-                onPointerDown={(event) =>
-                  startDrag(event, pair.pair_id, "bottom", { u: bottom.u, v: bottom.v })
-                }
-                onLostPointerCapture={cancelDrag}
-                r="11"
-                role="button"
-                tabIndex={0}
-              />
-            </g>
-          );
-        })}
-        {pendingPair?.top !== undefined ? (
-          <circle
-            aria-label="待创建角点对顶点"
-            cx={pendingPair.top.u * CANVAS_WIDTH}
-            cy={pendingPair.top.v * CANVAS_HEIGHT}
-            fill="#2f6fed"
-            r="11"
-          />
-        ) : null}
-      </svg>
-      <ol>
-        {state.pairs.map((pair, index) => (
-          <li key={pair.pair_id}>
-            <p>
-              第 {index + 1} 对 <code>{pair.pair_id}</code>
-            </p>
-            {(["top", "bottom"] as const).flatMap((point) =>
-              (["u", "v"] as const).map((coordinate) => {
-                const pointLabel = point === "top" ? "顶点" : "底点";
-                const coordinateLabel = coordinate === "u" ? "水平" : "垂直";
-                return (
-                  <label key={`${point}-${coordinate}`}>
-                    {`第 ${index + 1} 对${pointLabel}${coordinateLabel}坐标`}
-                    <input
-                      aria-label={`第 ${index + 1} 对${pointLabel}${coordinateLabel}坐标`}
-                      max={coordinate === "u" ? MAX_U : 1}
-                      min={0}
-                      onChange={(event) =>
-                        updateCoordinate(
-                          pair.pair_id,
-                          point,
-                          coordinate,
-                          event.currentTarget.valueAsNumber,
-                        )
-                      }
-                      step="any"
-                      type="number"
-                      value={displayedPoint(pair, point)[coordinate]}
-                    />
-                  </label>
-                );
-              }),
-            )}
-            <div>
-              <button disabled={index === 0} onClick={() => movePair(index, -1)} type="button">
-                第 {index + 1} 对上移
-              </button>
-              <button
-                disabled={index === state.pairs.length - 1}
-                onClick={() => movePair(index, 1)}
-                type="button"
-              >
-                第 {index + 1} 对下移
-              </button>
-              <button
-                aria-pressed={state.seam_anchor_pair_id === pair.pair_id}
-                disabled={state.seam_anchor_pair_id === pair.pair_id}
-                onClick={() =>
-                  commit((current) => ({ ...current, seam_anchor_pair_id: pair.pair_id }))
-                }
-                type="button"
-              >
-                将第 {index + 1} 对设为 seam
-              </button>
-              <button
-                disabled={state.pairs.length === 1}
-                onClick={() => deletePair(pair.pair_id)}
-                type="button"
-              >
-                删除第 {index + 1} 对
-              </button>
-            </div>
-          </li>
-        ))}
-      </ol>
+        <svg
+          aria-label="全景规范化坐标编辑区"
+          onClick={addPoint}
+          onPointerCancel={cancelDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={finishDrag}
+          style={{ border: "1px solid currentColor", touchAction: "none", width: "100%" }}
+          viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+        >
+          {backgroundImageUrl ? (
+            <image
+              aria-label="当前任务全景图标注底图"
+              crossOrigin="anonymous"
+              height={CANVAS_HEIGHT}
+              href={backgroundImageUrl}
+              onError={onBackgroundImageError}
+              preserveAspectRatio="none"
+              width={CANVAS_WIDTH}
+            />
+          ) : (
+            <rect fill="#eef2ef" height={CANVAS_HEIGHT} width={CANVAS_WIDTH} />
+          )}
+          {state.pairs.map((pair, index) => {
+            const top = displayedPoint(pair, "top");
+            const bottom = displayedPoint(pair, "bottom");
+            return (
+              <g key={pair.pair_id}>
+                <line
+                  stroke="#285b46"
+                  strokeWidth="3"
+                  x1={top.u * CANVAS_WIDTH}
+                  x2={bottom.u * CANVAS_WIDTH}
+                  y1={top.v * CANVAS_HEIGHT}
+                  y2={bottom.v * CANVAS_HEIGHT}
+                />
+                <circle
+                  aria-label={`第 ${index + 1} 对顶点`}
+                  cx={top.u * CANVAS_WIDTH}
+                  cy={top.v * CANVAS_HEIGHT}
+                  fill="#2f6fed"
+                  onPointerDown={(event) =>
+                    startDrag(event, pair.pair_id, "top", { u: top.u, v: top.v })
+                  }
+                  onLostPointerCapture={cancelDrag}
+                  r="11"
+                />
+                <circle
+                  aria-label={`第 ${index + 1} 对底点`}
+                  cx={bottom.u * CANVAS_WIDTH}
+                  cy={bottom.v * CANVAS_HEIGHT}
+                  fill="#d74c31"
+                  onPointerDown={(event) =>
+                    startDrag(event, pair.pair_id, "bottom", { u: bottom.u, v: bottom.v })
+                  }
+                  onLostPointerCapture={cancelDrag}
+                  r="11"
+                />
+              </g>
+            );
+          })}
+          {state.portals.map((portal) => (
+            <polygon
+              aria-label={`Portal ${portal.portal_id}`}
+              fill="rgba(255, 193, 7, 0.2)"
+              key={portal.portal_id}
+              points={[
+                portal.geometry.top_left,
+                portal.geometry.top_right,
+                portal.geometry.bottom_right,
+                portal.geometry.bottom_left,
+              ]
+                .map(({ u, v }) => `${u * CANVAS_WIDTH},${v * CANVAS_HEIGHT}`)
+                .join(" ")}
+              stroke="#b36b00"
+              strokeWidth="3"
+            />
+          ))}
+          {pendingPair?.top !== undefined ? (
+            <circle
+              aria-label="待创建角点对顶点"
+              cx={pendingPair.top.u * CANVAS_WIDTH}
+              cy={pendingPair.top.v * CANVAS_HEIGHT}
+              fill="#2f6fed"
+              r="11"
+            />
+          ) : null}
+        </svg>
+        <ol>
+          {state.pairs.map((pair, index) => (
+            <li key={pair.pair_id}>
+              <p>
+                第 {index + 1} 对 <code>{pair.pair_id}</code>
+              </p>
+              {(["top", "bottom"] as const).flatMap((point) =>
+                (["u", "v"] as const).map((coordinate) => {
+                  const pointLabel = point === "top" ? "顶点" : "底点";
+                  const coordinateLabel = coordinate === "u" ? "水平" : "垂直";
+                  return (
+                    <label key={`${point}-${coordinate}`}>
+                      {`第 ${index + 1} 对${pointLabel}${coordinateLabel}坐标`}
+                      <input
+                        aria-label={`第 ${index + 1} 对${pointLabel}${coordinateLabel}坐标`}
+                        max={coordinate === "u" ? MAX_U : 1}
+                        min={0}
+                        onChange={(event) =>
+                          updateCoordinate(
+                            pair.pair_id,
+                            point,
+                            coordinate,
+                            event.currentTarget.valueAsNumber,
+                          )
+                        }
+                        step="any"
+                        type="number"
+                        value={displayedPoint(pair, point)[coordinate]}
+                      />
+                    </label>
+                  );
+                }),
+              )}
+              <div>
+                <button disabled={index === 0} onClick={() => movePair(index, -1)} type="button">
+                  第 {index + 1} 对上移
+                </button>
+                <button
+                  disabled={index === state.pairs.length - 1}
+                  onClick={() => movePair(index, 1)}
+                  type="button"
+                >
+                  第 {index + 1} 对下移
+                </button>
+                <button
+                  aria-pressed={state.seam_anchor_pair_id === pair.pair_id}
+                  disabled={state.seam_anchor_pair_id === pair.pair_id}
+                  onClick={() =>
+                    commit((current) => ({ ...current, seam_anchor_pair_id: pair.pair_id }))
+                  }
+                  type="button"
+                >
+                  将第 {index + 1} 对设为 seam
+                </button>
+                <button onClick={() => deletePair(pair.pair_id)} type="button">
+                  删除第 {index + 1} 对
+                </button>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <PortalEditor
+          onChange={(next) => commit(() => next)}
+          onEditingChange={setPortalEditing}
+          state={state}
+        />
+      </fieldset>
       <output data-testid="annotation-state-sha" hidden>
         {stateSha}
       </output>

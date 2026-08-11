@@ -5,6 +5,8 @@ import process from "node:process";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { loginViaApi, postJson } from "./api-helpers";
+
 const ADMIN_PASSWORD = process.env.PANORAMA_E2E_ADMIN_PASSWORD;
 const HIGH_RESOLUTION_HASH = "1f395f818a59308471cd4998d65be7f2d8ea81ea76d2bb521194e0f2d5498b8e";
 const COMPRESSED_HASH = "2536b2aa8248cfec5b5165ccbd69bcbb0510b74547c13232926772a41fc2b26c";
@@ -26,43 +28,9 @@ async function loginAdministrator(page: Page): Promise<void> {
   if (ADMIN_PASSWORD === undefined) {
     throw new Error("Missing PANORAMA_E2E_ADMIN_PASSWORD");
   }
-  await page.goto("/");
-  const loginStatus = await page.evaluate(async (password) => {
-    await fetch("/api/auth/csrf", { credentials: "same-origin" });
-    const csrfToken = document.cookie
-      .split("; ")
-      .find((cookie) => cookie.startsWith("csrftoken="))
-      ?.slice("csrftoken=".length);
-    const response = await fetch("/api/auth/login", {
-      body: JSON.stringify({ password, username: "e2e-admin" }),
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken ?? "" },
-      method: "POST",
-    });
-    return response.status;
-  }, ADMIN_PASSWORD);
-  expect(loginStatus).toBe(200);
+  await loginViaApi(page, "e2e-admin", ADMIN_PASSWORD);
   await page.reload();
   await expect(page.getByRole("heading", { name: "管理员 COS 媒体导入" })).toBeVisible();
-}
-
-async function postJson(page: Page, endpoint: string, body: object) {
-  return page.evaluate(
-    async ({ endpoint: requestEndpoint, payload }) => {
-      const csrfToken = document.cookie
-        .split("; ")
-        .find((cookie) => cookie.startsWith("csrftoken="))
-        ?.slice("csrftoken=".length);
-      const response = await fetch(requestEndpoint, {
-        body: JSON.stringify(payload),
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken ?? "" },
-        method: "POST",
-      });
-      return { body: await response.json(), status: response.status };
-    },
-    { endpoint, payload: body },
-  );
 }
 
 async function createPreview(

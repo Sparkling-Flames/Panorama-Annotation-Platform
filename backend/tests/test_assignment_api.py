@@ -4,12 +4,13 @@ import json
 from uuid import UUID, uuid4
 
 import pytest
+from activity.models import ActivityEvent
 from django.contrib.sessions.models import Session
 from django.test import Client
-from identity.models import User
-from identity.services import revoke_worker_sessions
+from identity.models import DataNoticeAcceptance, User
+from identity.services import CURRENT_DATA_NOTICE_VERSION, revoke_worker_sessions
 from media.models import Asset, MediaVariant
-from work.models import Assignment, Task
+from work.models import AnnotationRevision, Assignment, CurrentDraft, Task, WorkBatch
 from work.services import (
     assign_task,
     cancel_task,
@@ -57,6 +58,9 @@ def worker(username: str) -> User:
 
 
 def logged_in(worker_user: User) -> Client:
+    DataNoticeAcceptance.objects.get_or_create(
+        worker=worker_user, notice_version=CURRENT_DATA_NOTICE_VERSION
+    )
     client = Client()
     client.force_login(worker_user)
     return client
@@ -79,6 +83,35 @@ def acquire_workspace(client: Client, *, tab_id: str, takeover: bool = False) ->
 
 def post_json(client: Client, path: str, payload: dict[str, object]):
     return client.post(path, data=json.dumps(payload), content_type="application/json")
+
+
+def test_pap_pas_sc_009_worker_assist_request_is_explicitly_disabled_and_owner_scoped() -> None:
+    owner = worker("assist-disabled-owner")
+    foreign_worker = worker("assist-disabled-foreign")
+    batch = create_work_batch(name="Assist disabled")
+    assignment = assign_task(batch=batch, task=published_task("assist-disabled"), worker=owner)
+    owner_client = logged_in(owner)
+    foreign_client = logged_in(foreign_worker)
+
+    listed = owner_client.get(f"/api/worker/batches/{batch.batch_id}/assignments")
+    rejected = post_json(
+        owner_client,
+        f"/api/worker/assignments/{assignment.assignment_id}/assist-candidate",
+        {"input_state_sha": "a" * 64},
+    )
+    hidden = post_json(
+        foreign_client,
+        f"/api/worker/assignments/{assignment.assignment_id}/assist-candidate",
+        {"input_state_sha": "a" * 64},
+    )
+
+    assert listed.status_code == 200
+    assert assignment.task.assist_enabled is False
+    assert "assist_enabled" not in listed.json()["assignments"][0]["task"]
+    assert rejected.status_code == 403
+    assert rejected.json() == {"error": {"code": "assist_disabled"}}
+    assert hidden.status_code == 404
+    assert "candidate" not in rejected.json()
 
 
 def test_task_4_3_worker_switches_queue_states_and_opens_multiple_assignments() -> None:
@@ -117,11 +150,6 @@ def test_task_4_3_worker_switches_queue_states_and_opens_multiple_assignments() 
         f"/api/worker/assignments/{second.assignment_id}/open",
         {"tab_id": tab_id},
     )
-    needs_revisit = post_json(
-        client,
-        f"/api/worker/assignments/{first.assignment_id}/queue-state",
-        {"queue_state": "needs_revisit", "tab_id": tab_id},
-    )
     ready = post_json(
         client,
         f"/api/worker/assignments/{first.assignment_id}/queue-state",
@@ -132,7 +160,6 @@ def test_task_4_3_worker_switches_queue_states_and_opens_multiple_assignments() 
         first_open.status_code
         == deferred.status_code
         == second_open.status_code
-        == needs_revisit.status_code
         == ready.status_code
         == 200
     )
@@ -140,6 +167,90 @@ def test_task_4_3_worker_switches_queue_states_and_opens_multiple_assignments() 
     second.refresh_from_db()
     assert first.queue_state == Assignment.QueueState.READY
     assert first.work_state == second.work_state == Assignment.WorkState.IN_PROGRESS
+
+
+def test_pap_tba_sc_019_skip_is_ordered_temporary_and_needs_revisit_is_reserved() -> None:
+    assigned_worker = worker("ordered-skip-worker")
+    batch = create_work_batch(name="Ordered skip batch")
+    first = assign_task(batch=batch, task=published_task("ordered-first"), worker=assigned_worker)
+    second = assign_task(batch=batch, task=published_task("ordered-second"), worker=assigned_worker)
+    third = assign_task(batch=batch, task=published_task("ordered-third"), worker=assigned_worker)
+    client = logged_in(assigned_worker)
+    tab_id = str(uuid4())
+    acquire_workspace(client, tab_id=tab_id)
+
+    listed = client.get(f"/api/worker/batches/{batch.batch_id}/assignments")
+    opened = post_json(
+        client,
+        f"/api/worker/assignments/{first.assignment_id}/open",
+        {"tab_id": tab_id},
+    )
+    draft = client.get(
+        f"/api/worker/assignments/{first.assignment_id}/draft",
+        {"tab_id": tab_id},
+    ).json()
+    activity = post_json(
+        client,
+        "/api/worker/activity-events",
+        {
+            "active_lease_id": str(uuid4()),
+            "active_time_rule_version": "active-time-v1",
+            "assignment_id": str(first.assignment_id),
+            "client_build_sha": "ordered-skip-test",
+            "client_monotonic_ms": 0,
+            "client_session_id": str(uuid4()),
+            "client_wall_time_ms": 1_700_000_000_000,
+            "draft_cycle_id": draft["draft_cycle_id"],
+            "event_id": str(uuid4()),
+            "event_type": "interaction",
+            "focus": True,
+            "interaction_type": "annotation_2d_edit",
+            "sequence_no": 1,
+            "tab_id": tab_id,
+            "visibility": "visible",
+        },
+    )
+    deferred = post_json(
+        client,
+        f"/api/worker/assignments/{first.assignment_id}/queue-state",
+        {"queue_state": "deferred", "tab_id": tab_id},
+    )
+    forbidden_revisit = post_json(
+        client,
+        f"/api/worker/assignments/{first.assignment_id}/queue-state",
+        {"queue_state": "needs_revisit", "tab_id": tab_id},
+    )
+    reopened = post_json(
+        client,
+        f"/api/worker/assignments/{first.assignment_id}/open",
+        {"tab_id": tab_id},
+    )
+
+    assert activity.status_code == 201
+    assert (
+        listed.status_code
+        == opened.status_code
+        == deferred.status_code
+        == reopened.status_code
+        == 200
+    )
+    assert [item["assignment_id"] for item in listed.json()["assignments"]] == [
+        str(first.assignment_id),
+        str(second.assignment_id),
+        str(third.assignment_id),
+    ]
+    assert [item["order_index"] for item in listed.json()["assignments"]] == [0, 1, 2]
+    assert forbidden_revisit.status_code == 409
+    assert forbidden_revisit.json() == {"error": {"code": "queue_state_forbidden"}}
+    first.refresh_from_db()
+    assert first.queue_state == Assignment.QueueState.READY
+    assert first.work_state == Assignment.WorkState.IN_PROGRESS
+    assert (
+        CurrentDraft.objects.get(draft_id=draft["draft_id"]).draft_version == draft["draft_version"]
+    )
+    assert ActivityEvent.objects.filter(assignment=first).count() == 1
+    assert not AnnotationRevision.objects.filter(assignment=first).exists()
+    assert client.get("/api/worker/batches").json()["batches"][0]["worker_complete"] is False
 
 
 def test_task_4_3_worker_can_read_an_owned_assignment_only() -> None:
@@ -234,9 +345,52 @@ def test_administrator_creates_a_real_batch_assignment_contract() -> None:
     task = published_task("admin-assigned")
     client = logged_in(administrator)
 
-    batch_response = post_json(client, "/api/admin/work-batches", {"name": "Admin batch"})
+    scope_policy = {
+        "auto_close_reason_codes": ["insufficient_evidence"],
+        "maximum_support": 5,
+        "minimum_support": 3,
+        "version": "scope-policy-v1",
+    }
+    consensus_policy = {
+        "addition_step": 1,
+        "k_initial": 3,
+        "k_max": 5,
+        "version": "consensus-policy-v1",
+    }
+    batch_response = post_json(
+        client,
+        "/api/admin/work-batches",
+        {
+            "consensus_policy": consensus_policy,
+            "name": "Admin batch",
+            "scope_policy": scope_policy,
+        },
+    )
     assert batch_response.status_code == 201
+    assert batch_response.json()["consensus_policy"] == consensus_policy
+    assert batch_response.json()["scope_policy"] == scope_policy
+    assert batch_response.json()["policy_frozen_at"] is None
     batch_id = batch_response.json()["batch_id"]
+    batch = WorkBatch.objects.get(batch_id=batch_id)
+    assert batch.consensus_policy == consensus_policy
+    assert batch.scope_policy == scope_policy
+    invalid_policy = post_json(
+        client,
+        "/api/admin/work-batches",
+        {"name": "Invalid policy", "scope_policy": {**scope_policy, "minimum_support": 0}},
+    )
+    assert invalid_policy.status_code == 400
+    assert invalid_policy.json() == {"error": {"code": "scope_policy_invalid"}}
+    invalid_consensus = post_json(
+        client,
+        "/api/admin/work-batches",
+        {
+            "consensus_policy": {**consensus_policy, "k_max": 2},
+            "name": "Invalid consensus",
+        },
+    )
+    assert invalid_consensus.status_code == 400
+    assert invalid_consensus.json() == {"error": {"code": "consensus_policy_invalid"}}
 
     assignment_response = post_json(
         client,
@@ -376,9 +530,11 @@ def test_task_4_6_terminal_tasks_reject_worker_writes() -> None:
     )
 
     assert rejected_open.status_code == rejected_queue_change.status_code == 409
-    assert rejected_open.json() == rejected_queue_change.json() == {
-        "error": {"code": "assignment_task_unavailable"}
-    }
+    assert (
+        rejected_open.json()
+        == rejected_queue_change.json()
+        == {"error": {"code": "assignment_task_unavailable"}}
+    )
     cancelled_assignment.refresh_from_db()
     superseded_assignment.refresh_from_db()
     assert cancelled_assignment.work_state == Assignment.WorkState.REVOKED

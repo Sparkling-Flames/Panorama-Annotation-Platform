@@ -10,7 +10,40 @@ from django.contrib.sessions.models import Session
 from django.db import transaction
 from django.utils import timezone
 
-from .models import ActiveWorkspace, AuditEvent, User
+from .models import ActiveWorkspace, AuditEvent, DataNoticeAcceptance, User
+
+CURRENT_DATA_NOTICE_VERSION = "data-notice-v1"
+DATA_NOTICE_CATEGORIES = (
+    "account_and_worker_id",
+    "assignment_draft_revision_review",
+    "active_time_coarse_events",
+    "errors_and_client_preflight",
+    "guidance_acknowledgements",
+)
+DATA_NOTICE_COPY = {
+    "zh-CN": {
+        "title": "数据告知",
+        "summary": "我们仅收集完成平台标注、恢复、审计和质量核验所需的下列记录。",
+        "collected_data": [
+            "账号与工人 ID",
+            "任务、草稿、提交与复核",
+            "粗粒度活动时间事件",
+            "错误与客户端预检",
+            "指导确认",
+        ],
+    },
+    "en": {
+        "title": "Data notice",
+        "summary": "We collect only the following records required for annotation, recovery, audit, and quality verification.",
+        "collected_data": [
+            "Account and worker ID",
+            "Assignments, drafts, submissions, and reviews",
+            "Coarse active-time events",
+            "Errors and client preflight",
+            "Guidance acknowledgements",
+        ],
+    },
+}
 
 
 class WorkspaceConflict(Exception):
@@ -20,6 +53,10 @@ class WorkspaceConflict(Exception):
 
 
 class WorkspaceLeaseLost(Exception):
+    pass
+
+
+class NoticeAcceptanceRequired(WorkspaceLeaseLost):
     pass
 
 
@@ -33,6 +70,37 @@ def temporary_password() -> str:
     return secrets.token_urlsafe(18)
 
 
+def has_current_data_notice(worker: User) -> bool:
+    return DataNoticeAcceptance.objects.filter(
+        worker=worker,
+        notice_version=CURRENT_DATA_NOTICE_VERSION,
+    ).exists()
+
+
+@transaction.atomic
+def accept_current_data_notice(
+    *, worker: User, notice_version: str
+) -> tuple[DataNoticeAcceptance, bool]:
+    if notice_version != CURRENT_DATA_NOTICE_VERSION:
+        raise ValueError("notice_version")
+    locked_worker = User.objects.select_for_update().get(pk=worker.pk)
+    acceptance, created = DataNoticeAcceptance.objects.get_or_create(
+        worker=locked_worker,
+        notice_version=CURRENT_DATA_NOTICE_VERSION,
+    )
+    if created:
+        record_audit_event(
+            actor=locked_worker,
+            target_worker=locked_worker,
+            target_type="data_notice_acceptance",
+            target_id=acceptance.acceptance_id,
+            action="privacy.notice_accepted",
+            reason="worker accepted the current data notice",
+            details={"notice_version": CURRENT_DATA_NOTICE_VERSION},
+        )
+    return acceptance, created
+
+
 def record_account_audit(
     *,
     actor: User,
@@ -40,10 +108,45 @@ def record_account_audit(
     action: str,
     details: dict[str, object] | None = None,
 ) -> AuditEvent:
+    audit_details = details or {}
+    detail_reason = audit_details.get("reason")
+    return record_audit_event(
+        actor=actor,
+        target_worker=target_worker,
+        target_type="worker",
+        target_id=target_worker.worker_id,
+        action=action,
+        reason=detail_reason if isinstance(detail_reason, str) else action,
+        details=audit_details,
+    )
+
+
+def record_audit_event(
+    *,
+    actor: User,
+    target_type: str,
+    target_id: UUID | str,
+    action: str,
+    reason: str,
+    correlation_id: UUID | None = None,
+    details: dict[str, object] | None = None,
+    target_worker: User | None = None,
+) -> AuditEvent:
+    clean_target_type = target_type.strip()
+    clean_target_id = str(target_id).strip()
+    clean_reason = reason.strip()
+    if not clean_target_type or not clean_target_id:
+        raise ValueError("Audit target type and ID are required.")
+    if not clean_reason:
+        raise ValueError("Audit reason is required.")
     return AuditEvent.objects.create(
         actor=actor,
         target_worker=target_worker,
+        target_type=clean_target_type,
+        target_id=clean_target_id,
         action=action,
+        reason=clean_reason,
+        correlation_id=correlation_id or uuid4(),
         details=details or {},
     )
 
@@ -127,6 +230,8 @@ def acquire_worker_workspace(
     takeover: bool,
 ) -> WorkspaceAcquisition:
     locked_worker = User.objects.select_for_update().get(pk=worker.pk)
+    if not has_current_data_notice(locked_worker):
+        raise NoticeAcceptanceRequired
     workspace = ActiveWorkspace.objects.select_for_update().filter(worker=locked_worker).first()
     now = timezone.now()
     expires_at = now + timedelta(seconds=settings.WORKSPACE_LEASE_SECONDS)
@@ -212,6 +317,8 @@ def lock_worker_workspace_for_write(
     tab_id: UUID,
 ) -> ActiveWorkspace:
     locked_worker = User.objects.select_for_update().get(pk=worker.pk)
+    if not has_current_data_notice(locked_worker):
+        raise NoticeAcceptanceRequired
     workspace = ActiveWorkspace.objects.select_for_update().filter(worker=locked_worker).first()
     try:
         parsed_token = UUID(session_token) if session_token is not None else None

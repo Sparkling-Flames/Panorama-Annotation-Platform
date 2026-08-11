@@ -146,6 +146,17 @@ def test_pap_iam_sc_003_temporary_password_blocks_workspace_until_changed() -> N
 
     workspace_response = worker_client.get("/api/workspace/session")
     assert workspace_response.status_code == 200
+    assert workspace_response.json() == {"workspace_access": False}
+
+    notice = worker_client.get("/api/privacy/notice").json()
+    accepted_response = worker_client.post(
+        "/api/privacy/notice/accept",
+        {"notice_version": notice["notice_version"]},
+        content_type="application/json",
+    )
+    assert accepted_response.status_code == 201
+
+    workspace_response = worker_client.get("/api/workspace/session")
     assert workspace_response.json() == {"workspace_access": True}
 
 
