@@ -20,8 +20,8 @@
 
 ## 3. Asset、MediaVariant 与 COS 导入交付切片
 
-- [ ] 3.1 【Red】为 Asset/MediaVariant 稳定 ID、内容 hash、COS version/长度/CRC64、尺寸/格式/角色、数据库绕过不可变发布和规范化坐标映射编写数据库合同测试（`media-ingestion-delivery`）。
-- [ ] 3.2 【Green】实现 Asset/MediaVariant 模型、PostgreSQL 不可变约束、可信 manifest 登记和 canonical 映射，使发布后覆盖、非等比普通变体和 hash/version drift 均失败；PostgreSQL 专属证据必须在 PostgreSQL 17 实际运行，不以 SQLite 或 skip 代替。
+- [x] 3.1 【Red】为 Asset/MediaVariant 稳定 ID、内容 hash、COS version/长度/CRC64、尺寸/格式/角色、数据库绕过不可变发布和规范化坐标映射编写数据库合同测试（`media-ingestion-delivery`）。（模型、导入、manifest、COS 漂移、映射及原始 SQL/ORM 绕过测试均已落地，场景 ID 已纳入 traceability validator。）
+- [x] 3.2 【Green】实现 Asset/MediaVariant 模型、PostgreSQL 不可变约束、可信 manifest 登记和 canonical 映射，使发布后覆盖、非等比普通变体和 hash/version drift 均失败；PostgreSQL 专属证据必须在 PostgreSQL 17 实际运行，不以 SQLite 或 skip 代替。（真实 PostgreSQL 17 已通过发布后字段 UPDATE/DELETE、已登记对象 UPDATE/DELETE、并发幂等导入与完整迁移往返专测。）
 - [x] 3.3 【Red】为相同 source key/hash 幂等导入、预览取消不消耗正式 Task 编写服务测试。
 - [x] 3.4 【Green】实现仅浏览受信 manifest 已登记 COS 版本的候选配对/预览/发布向导后端与最小 UI，不要求手写 JSON；允许同一 Asset 追加新的不可变同角色 MediaVariant，但禁止同一 source key 改变已登记元数据；运行幂等与重复导入回归。
 - [x] 3.5 【Red】为仅接受已拼接等距柱状图、拒绝 skybox 集和不兼容变体编写导入校验测试。
@@ -163,7 +163,7 @@
 - [ ] 13.6 配置数据库每日备份 30 天、关键操作前额外备份/导出和 COS 不可变/恢复窗口；证据为上线前完整恢复演练。
 - [ ] 13.7 验证全球测试节点的压缩/高清首字节、失败和回退指标可按匿名化地区聚合；CDN 仍不在首版依赖中。
 - [x] 13.8 添加仓库隔离测试，确保构建、测试、部署和运行不读取 `D:\Work\HOHONET` 或 Label Studio 数据库。（CI 扫描当前及未来执行面、构建/依赖清单和软链接目标；真实生产部署验收仍由 13.5/14.7 完成。）
-- [ ] 13.9 【Red/Green】把 Supabase 定位为仅托管 PostgreSQL：固定 21 个触发器函数的 `search_path`，撤销 `PUBLIC`/`anon`/`authenticated`/`service_role` 对 Django `public` 对象及当前 owner 默认对象的权限，并在临时 PostgreSQL 17 中用同名角色验证迁移、回滚往返和有效权限均安全。
+- [x] 13.9 【Red/Green】把 Supabase 定位为仅托管 PostgreSQL：固定 21 个触发器函数的 `search_path`，撤销 `PUBLIC`/`anon`/`authenticated`/`service_role` 对 Django `public` 对象及当前 owner 默认对象的权限，并在临时 PostgreSQL 17 中用同名角色验证迁移、回滚往返和有效权限均安全。（云端 PostgreSQL 17 已通过函数配置、有效权限、默认权限及 0028→0001→0028 往返专测。）
 - [ ] 13.10 在生产 Supabase Dashboard 禁用 Data API 或从 exposed schema 移除 `public`，经 Django release migration 部署 13.9 后只读复核对象权限和 security advisor；不得用 Supabase migration history 形成第二套 DDL authority。
 
 ## 14. 端到端验收与上线门槛
