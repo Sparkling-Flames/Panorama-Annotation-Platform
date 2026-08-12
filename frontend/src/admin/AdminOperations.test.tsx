@@ -64,6 +64,30 @@ describe("AdminOperations", () => {
           ],
         });
       }
+      if (url === "/api/admin/work-batches/batch-001/review-queue") {
+        return jsonResponse({
+          batch_id: "batch-001",
+          items: [
+            {
+              conflict_summary: {
+                geometry_state: "unresolved",
+                portal_state: "resolved",
+                reason_codes: ["geometry_multimodal"],
+                scope_state: "unresolved",
+              },
+              input_revision_ids: ["revision-001", "revision-002"],
+              input_sha256: "a".repeat(64),
+              queue_type: "consensus_unresolved",
+              rule_versions: {
+                consensus_policy: "consensus-policy-v2",
+                scope_policy: "scope-policy-v1",
+              },
+              task_id: "task-001",
+              updated_at: "2026-08-11T01:02:03Z",
+            },
+          ],
+        });
+      }
       throw new Error(`Unexpected request: ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -73,8 +97,9 @@ describe("AdminOperations", () => {
     expect(
       await screen.findByRole("heading", { name: "批次运营概览 / Batch operations" }),
     ).toBeInTheDocument();
-    await screen.findByText(/GMT/);
-    expect(document.querySelector('time[datetime="2026-08-11T01:02:03Z"]')).not.toBeNull();
+    await waitFor(() =>
+      expect(document.querySelector('time[datetime="2026-08-11T01:02:03Z"]')).not.toBeNull(),
+    );
     expect(screen.getByText("已提交任务 / Submitted tasks").nextElementSibling).toHaveTextContent(
       "11",
     );
@@ -87,6 +112,12 @@ describe("AdminOperations", () => {
     expect(
       screen.getByText("不计算工资或付款 / No wage or payment calculation"),
     ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "复核队列 / Review queue" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("consensus_unresolved")).toBeInTheDocument();
+    expect(screen.getByText("geometry_multimodal")).toBeInTheDocument();
+    expect(screen.getByText("revision-001, revision-002")).toBeInTheDocument();
     expect(screen.queryByText(/tier|处罚|punishment/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "刷新 / Refresh" }));
@@ -171,6 +202,9 @@ describe("AdminOperations", () => {
             : null,
           refreshed_at: "2026-08-11T02:00:00Z",
         });
+      }
+      if (url === "/api/admin/work-batches/batch-002/review-queue") {
+        return jsonResponse({ batch_id: "batch-002", items: [] });
       }
       throw new Error(`Unexpected request: ${url}`);
     });

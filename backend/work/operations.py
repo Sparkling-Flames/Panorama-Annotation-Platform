@@ -16,6 +16,7 @@ from identity.models import ActiveWorkspace, User
 from .models import (
     AnnotationRevision,
     Assignment,
+    AuditArtifact,
     BlockReport,
     OperationalIssue,
     SubmissionAssessment,
@@ -103,6 +104,165 @@ def record_operational_issue(
             error_code,
         )
         return None
+
+
+def _review_input_revision_ids(input_manifest: dict[str, object]) -> list[str]:
+    inputs = input_manifest.get("inputs")
+    if not isinstance(inputs, list):
+        return []
+    return [
+        revision_id
+        for item in inputs
+        if isinstance(item, dict) and isinstance((revision_id := item.get("revision_id")), str)
+    ]
+
+
+def _unresolved_review_reason_codes(aggregate: TaskAggregate) -> list[str]:
+    reason_codes: list[str] = []
+    if aggregate.geometry_state == TaskAggregate.ComponentState.UNRESOLVED:
+        reason_codes.append("geometry_multimodal")
+    if aggregate.portal_state == TaskAggregate.ComponentState.UNRESOLVED:
+        reason_codes.append("portal_multimodal")
+
+    inputs = aggregate.input_manifest.get("inputs")
+    observations: set[str] = set()
+    has_scope_structure_conflict = False
+    if isinstance(inputs, list):
+        for item in inputs:
+            if not isinstance(item, dict):
+                continue
+            scope_evidence = item.get("scope_evidence")
+            observation = (
+                scope_evidence.get("observation") if isinstance(scope_evidence, dict) else None
+            )
+            if not isinstance(observation, str):
+                continue
+            observations.add(observation)
+            components = item.get("eligible_components")
+            if (
+                observation != "annotatable"
+                and isinstance(components, list)
+                and any(component in {"geometry", "portal"} for component in components)
+            ):
+                has_scope_structure_conflict = True
+    if len(observations) > 1:
+        reason_codes.append("scope_observation_conflict")
+    if has_scope_structure_conflict:
+        reason_codes.append("scope_structure_conflict")
+    if aggregate.scope_state == TaskAggregate.ScopeState.UNRESOLVED and observations != {
+        "annotatable"
+    }:
+        reason_codes.append("scope_unresolved")
+    return reason_codes or ["consensus_unresolved"]
+
+
+def batch_review_queue(
+    *, batch_id: UUID, reason_code: str | None = None
+) -> list[dict[str, object]]:
+    batch = WorkBatch.objects.filter(batch_id=batch_id).first()
+    if batch is None:
+        raise ResourceNotFound
+
+    queue_rows: list[tuple[datetime, dict[str, object]]] = []
+    for aggregate in TaskAggregate.objects.filter(
+        batch=batch,
+        terminal_state=TaskAggregate.TerminalState.UNRESOLVED,
+    ).order_by("-updated_at", "task_id"):
+        reason_codes = _unresolved_review_reason_codes(aggregate)
+        if reason_code is not None and reason_code not in reason_codes:
+            continue
+        rule_versions = {
+            key: value
+            for key, value in {
+                "consensus_policy": aggregate.consensus_policy_version,
+                "scope_policy": aggregate.policy_version,
+            }.items()
+            if value
+        }
+        queue_rows.append(
+            (
+                aggregate.updated_at,
+                {
+                    "conflict_summary": {
+                        "geometry_state": aggregate.geometry_state,
+                        "portal_state": aggregate.portal_state,
+                        "reason_codes": reason_codes,
+                        "scope_state": aggregate.scope_state,
+                    },
+                    "input_revision_ids": _review_input_revision_ids(aggregate.input_manifest),
+                    "input_sha256": aggregate.input_sha256,
+                    "queue_type": "consensus_unresolved",
+                    "rule_versions": rule_versions,
+                    "task_id": str(aggregate.task_id),
+                    "updated_at": aggregate.updated_at.isoformat().replace("+00:00", "Z"),
+                },
+            )
+        )
+    for artifact in AuditArtifact.objects.filter(
+        revision__assignment__batch=batch,
+        requires_review=True,
+    ).select_related("revision"):
+        reason_codes = [finding for finding in artifact.findings if isinstance(finding, str)]
+        if not reason_codes or (reason_code is not None and reason_code not in reason_codes):
+            continue
+        queue_rows.append(
+            (
+                artifact.created_at,
+                {
+                    "conflict_summary": {
+                        "audit_type": artifact.audit_type,
+                        "reason_codes": reason_codes,
+                    },
+                    "input_revision_ids": [str(artifact.revision_id)],
+                    "input_sha256": artifact.input_sha256,
+                    "queue_type": "audit_finding",
+                    "rule_versions": {
+                        "audit_code": artifact.code_version,
+                        "audit_rule": artifact.rule_version,
+                    },
+                    "task_id": str(artifact.revision.task_id),
+                    "updated_at": artifact.created_at.isoformat().replace("+00:00", "Z"),
+                },
+            )
+        )
+    for issue in OperationalIssue.objects.filter(assignment__batch=batch).select_related(
+        "assignment__task"
+    ):
+        reason_codes = [issue.error_code]
+        if reason_code is not None and reason_code not in reason_codes:
+            continue
+        queue_rows.append(
+            (
+                issue.created_at,
+                {
+                    "conflict_summary": {
+                        "error_code": issue.error_code,
+                        "issue_kind": issue.kind,
+                        "reason_codes": reason_codes,
+                    },
+                    "input_revision_ids": [],
+                    "input_sha256": None,
+                    "queue_id": str(issue.issue_id),
+                    "queue_type": "operational_issue",
+                    "rule_versions": {},
+                    "task_id": str(issue.assignment.task_id),
+                    "updated_at": issue.created_at.isoformat().replace("+00:00", "Z"),
+                },
+            )
+        )
+    return [
+        item
+        for _updated_at, item in sorted(
+            queue_rows,
+            key=lambda row: (
+                row[0],
+                str(row[1]["queue_type"]),
+                str(row[1]["task_id"]),
+                str(row[1].get("queue_id", row[1]["input_sha256"])),
+            ),
+            reverse=True,
+        )
+    ]
 
 
 def batch_operational_snapshot(*, batch_id: UUID) -> dict[str, object]:

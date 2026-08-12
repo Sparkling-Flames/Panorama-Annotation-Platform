@@ -52,7 +52,7 @@ from .models import (
     Task,
     WorkBatch,
 )
-from .operations import batch_operational_snapshot, record_operational_issue
+from .operations import batch_operational_snapshot, batch_review_queue, record_operational_issue
 from .prediction import preview_prediction_import, publish_prediction_import
 from .services import (
     accept_owned_rework_request,
@@ -414,6 +414,21 @@ def admin_batch_operations_view(request: HttpRequest, batch_id: UUID) -> JsonRes
         else metric_snapshot_payload(latest_snapshot, include_input_manifest=False)
     )
     return JsonResponse(snapshot)
+
+
+@require_GET
+def admin_batch_review_queue_view(request: HttpRequest, batch_id: UUID) -> JsonResponse:
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
+    try:
+        items = batch_review_queue(
+            batch_id=batch_id,
+            reason_code=request.GET.get("reason_code"),
+        )
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
+    return JsonResponse({"batch_id": str(batch_id), "items": items})
 
 
 @require_POST

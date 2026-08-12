@@ -53,6 +53,19 @@ type MetricSnapshot = {
   support: number;
 };
 
+type ReviewQueueItem = {
+  conflict_summary: {
+    reason_codes: string[];
+  };
+  input_revision_ids: string[];
+  input_sha256: string | null;
+  queue_id?: string;
+  queue_type: "audit_finding" | "consensus_unresolved" | "operational_issue";
+  rule_versions: Record<string, string>;
+  task_id: string;
+  updated_at: string;
+};
+
 const COUNT_LABELS: ReadonlyArray<[keyof Counts, string]> = [
   ["submitted", "已提交任务 / Submitted tasks"],
   ["pending", "待处理任务 / Pending tasks"],
@@ -73,6 +86,7 @@ export function AdminOperations() {
   const [batches, setBatches] = useState<WorkBatch[] | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[] | null>(null);
   const [metricSnapshot, setMetricSnapshot] = useState<MetricSnapshot | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState("");
@@ -115,6 +129,25 @@ export function AdminOperations() {
     return () => controller.abort();
   }, [refresh, selectedBatchId]);
 
+  useEffect(() => {
+    if (!selectedBatchId) return;
+    const controller = new AbortController();
+    void apiFetch(`/api/admin/work-batches/${selectedBatchId}/review-queue`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("review queue unavailable");
+        const payload = (await response.json()) as { items?: ReviewQueueItem[] };
+        if (!Array.isArray(payload.items)) throw new Error("invalid review queue");
+        setReviewQueue(payload.items);
+      })
+      .catch((reason: unknown) => {
+        if ((reason as { name?: string }).name !== "AbortError")
+          setError("无法读取复核队列 / Review queue unavailable");
+      });
+    return () => controller.abort();
+  }, [refresh, selectedBatchId]);
+
   async function calculateSnapshot() {
     if (!selectedBatchId || calculating) return;
     setCalculating(true);
@@ -146,6 +179,7 @@ export function AdminOperations() {
               onChange={(event) => {
                 setSelectedBatchId(event.target.value);
                 setSnapshot(null);
+                setReviewQueue(null);
                 setMetricSnapshot(null);
               }}
               value={selectedBatchId}
@@ -224,6 +258,47 @@ export function AdminOperations() {
               ))}
             </tbody>
           </table>
+          {reviewQueue ? (
+            <article className="review-queue">
+              <h3>复核队列 / Review queue</h3>
+              {reviewQueue.length === 0 ? (
+                <p>当前没有待复核项目 / No review items</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Task ID</th>
+                      <th>类型 / Type</th>
+                      <th>冲突原因 / Conflict reasons</th>
+                      <th>输入 Revision / Input revisions</th>
+                      <th>规则版本 / Rule versions</th>
+                      <th>更新时间 / Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviewQueue.map((item) => (
+                      <tr key={item.queue_id ?? `${item.task_id}:${item.input_sha256}`}>
+                        <td>{item.task_id}</td>
+                        <td>{item.queue_type}</td>
+                        <td>{item.conflict_summary.reason_codes.join(", ")}</td>
+                        <td>{item.input_revision_ids.join(", ")}</td>
+                        <td>
+                          {Object.entries(item.rule_versions)
+                            .map(([rule, version]) => `${rule}: ${version}`)
+                            .join(", ")}
+                        </td>
+                        <td>
+                          <time dateTime={item.updated_at}>
+                            {formatLocalTimestamp(item.updated_at, "zh-CN")}
+                          </time>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </article>
+          ) : null}
         </>
       ) : null}
       {metricSnapshot ? (

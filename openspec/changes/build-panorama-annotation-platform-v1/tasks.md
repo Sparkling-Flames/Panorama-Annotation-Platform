@@ -141,7 +141,7 @@
 - [x] 12.2 【Green】实现管理员运营页，不自动生成 tier、处罚或路由变更。
 - [x] 12.3 【Red】为“计算当前情况”的 cutoff、仅 Revision、input manifest/hash、版本/support/missing/not-evaluable、相同输入复用和旧快照不变编写 Job 测试。
 - [x] 12.4 【Green】实现 MetricSnapshot 后台作业与管理员状态/结果 UI。
-- [ ] 12.5 【Red/Green】实现 unresolved、多峰、scope 与有效 portal/geometry 冲突、模板化 reason、画像漂移与随机抽检复核队列；满足冻结 ScopePolicy 且未命中抽检的 Task 不要求逐张审核。
+- [ ] 12.5 【Red/Green】实现 unresolved、多峰、scope 与有效 portal/geometry 冲突、模板化 reason、画像漂移与随机抽检复核队列；满足冻结 ScopePolicy 且未命中抽检的 Task 不要求逐张审核。（已实现由真实 `TaskAggregate`、`requires_review` AuditArtifact 和 OperationalIssue 驱动的复核队列、管理员读取/按 reason code 筛选、输入 Revision/冲突摘要/冻结规则版本；反复模板化 reason、画像漂移与随机抽检仍未实现。）
 - [x] 12.6 【Red/Green】实现最小 GuidanceEvent 和确认/feedback exposure，仅目标工人可查询并确认；未确认投递不得计作 feedback exposure，不提供工人回复、对话线程，也不集成微信/Upwork 聊天内容或支付。
 - [x] 12.7 【Red】为注册 AuditRun、冻结 hash 输入、不可变 Artifact、审计不能修改 Revision 编写权限和副作用测试。
 - [x] 12.8 【Green】实现注册审计框架及 canonical 结构、scope-portal、时间完整性审计类型；拒绝任意脚本。Manhattan 审计仅在 7.7 的正式 authority 获确认并注册后加入，不以占位算法冒充。

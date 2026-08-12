@@ -35,6 +35,11 @@ urlpatterns = [
         name="admin-batch-operations",
     ),
     path(
+        "admin/work-batches/<uuid:batch_id>/review-queue",
+        views.admin_batch_review_queue_view,
+        name="admin-batch-review-queue",
+    ),
+    path(
         "admin/work-batches/<uuid:batch_id>/metric-snapshots",
         views.admin_batch_metric_snapshots_view,
         name="admin-batch-metric-snapshots",

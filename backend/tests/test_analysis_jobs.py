@@ -19,6 +19,7 @@ from work.jobs import (
     analysis_job_metrics,
     eligible_task_input_manifest,
     process_next_analysis_job,
+    request_revision_audit,
 )
 from work.models import (
     AnalysisJob,
@@ -27,6 +28,7 @@ from work.models import (
     AssignmentProposal,
     AuditArtifact,
     CurrentDraft,
+    OperationalIssue,
     SubmissionAssessment,
     Task,
     TaskAggregate,
@@ -596,6 +598,222 @@ def test_pap_acr_sc_006_and_008_component_consensus_freezes_real_medoids() -> No
         TaskConsensusArtifact.objects.filter(pk=artifact.pk).update(input_sha256="f" * 64)
     with pytest.raises(DatabaseError), transaction.atomic():
         TaskConsensusArtifact.objects.filter(pk=artifact.pk).delete()
+
+
+def test_pap_aae_sc_003_unresolved_consensus_appears_in_filterable_review_queue() -> None:
+    batch = create_work_batch(name="Unresolved review queue batch")
+    first, _assignment = submitted_revision(
+        "review-queue-one",
+        batch=batch,
+        state=canonical_geometry_state([0.1, 0.4, 0.7]),
+    )
+    revisions = [first]
+    for suffix, pair_us in (
+        ("review-queue-two", [0.105, 0.405, 0.705]),
+        ("review-queue-three", [0.11, 0.41, 0.71]),
+        ("review-queue-four", [0.2, 0.5, 0.8]),
+        ("review-queue-five", [0.205, 0.505, 0.805]),
+    ):
+        revision, _assignment = submitted_revision(
+            suffix,
+            batch=batch,
+            task=first.task,
+            state=canonical_geometry_state(pair_us),
+        )
+        revisions.append(revision)
+
+    completed = None
+    for sequence in range(len(revisions)):
+        completed = process_next_analysis_job(worker_id=f"review-queue-worker-{sequence}")
+    aggregate = TaskAggregate.objects.get(batch=batch, task=first.task)
+    administrator = User.objects.create_user(
+        username="review-queue-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+
+    response = client.get(
+        f"/api/admin/work-batches/{batch.batch_id}/review-queue?reason_code=geometry_multimodal"
+    )
+    excluded = client.get(
+        f"/api/admin/work-batches/{batch.batch_id}/review-queue?reason_code=portal_multimodal"
+    )
+
+    assert completed is not None and completed.status == AnalysisJob.Status.SUCCEEDED
+    assert aggregate.terminal_state == TaskAggregate.TerminalState.UNRESOLVED
+    assert response.status_code == 200
+    assert response.json()["batch_id"] == str(batch.batch_id)
+    assert len(response.json()["items"]) == 1
+    item = response.json()["items"][0]
+    assert item["task_id"] == str(first.task_id)
+    assert item["input_sha256"] == aggregate.input_sha256
+    assert set(item["input_revision_ids"]) == {str(revision.revision_id) for revision in revisions}
+    assert item["conflict_summary"] == {
+        "geometry_state": "unresolved",
+        "portal_state": "resolved",
+        "reason_codes": ["geometry_multimodal"],
+        "scope_state": "unresolved",
+    }
+    assert item["rule_versions"] == {
+        "consensus_policy": "consensus-policy-v2",
+        "scope_policy": "scope-policy-v1",
+    }
+    assert excluded.status_code == 200
+    assert excluded.json()["items"] == []
+    worker_client = Client()
+    worker_client.force_login(first.worker)
+    assert (
+        worker_client.get(f"/api/admin/work-batches/{batch.batch_id}/review-queue").status_code
+        == 403
+    )
+
+
+def test_scope_geometry_conflict_appears_in_review_queue_without_exposing_state() -> None:
+    def conflicting_state() -> dict[str, object]:
+        state = canonical_geometry_state([0.1, 0.4, 0.7])
+        state["scope_reason_codes"] = ["insufficient_evidence"]
+        state["worker_scope_observation"] = "representation_oos"
+        return state
+
+    batch = create_work_batch(name="Scope conflict review queue batch")
+    first, _assignment = submitted_revision(
+        "scope-review-queue-one",
+        batch=batch,
+        state=conflicting_state(),
+    )
+    revisions = [first]
+    for suffix in (
+        "scope-review-queue-two",
+        "scope-review-queue-three",
+        "scope-review-queue-four",
+        "scope-review-queue-five",
+    ):
+        revision, _assignment = submitted_revision(
+            suffix,
+            batch=batch,
+            task=first.task,
+            state=conflicting_state(),
+        )
+        revisions.append(revision)
+    for sequence in range(len(revisions)):
+        process_next_analysis_job(worker_id=f"scope-review-queue-worker-{sequence}")
+
+    administrator = User.objects.create_user(
+        username="scope-review-queue-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+    response = client.get(
+        f"/api/admin/work-batches/{batch.batch_id}/review-queue"
+        "?reason_code=scope_structure_conflict"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
+    item = response.json()["items"][0]
+    assert item["task_id"] == str(first.task_id)
+    assert item["input_revision_ids"] == [str(revision.revision_id) for revision in revisions]
+    assert set(item) == {
+        "conflict_summary",
+        "input_revision_ids",
+        "input_sha256",
+        "queue_type",
+        "rule_versions",
+        "task_id",
+        "updated_at",
+    }
+    assert item["conflict_summary"] == {
+        "geometry_state": "resolved",
+        "portal_state": "resolved",
+        "reason_codes": ["scope_structure_conflict", "scope_unresolved"],
+        "scope_state": "unresolved",
+    }
+    assert item["queue_type"] == "consensus_unresolved"
+
+
+def test_audit_artifact_finding_appears_in_review_queue() -> None:
+    state = canonical_geometry_state([0.1, 0.4, 0.7], portal_u=0.2)
+    state["scope_reason_codes"] = ["insufficient_evidence"]
+    state["worker_scope_observation"] = "representation_oos"
+    revision, assignment = submitted_revision("audit-review-queue", state=state)
+    request_revision_audit(revision_id=revision.revision_id, audit_type="scope_portal")
+    while process_next_analysis_job(worker_id="audit-review-queue-worker") is not None:
+        pass
+
+    artifact = AuditArtifact.objects.get(revision=revision, audit_type="scope_portal")
+    administrator = User.objects.create_user(
+        username="audit-review-queue-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+    response = client.get(
+        f"/api/admin/work-batches/{assignment.batch_id}/review-queue"
+        "?reason_code=scope_portal_conflict"
+    )
+
+    assert artifact.requires_review is True
+    assert response.status_code == 200
+    assert response.json()["items"] == [
+        {
+            "conflict_summary": {
+                "audit_type": "scope_portal",
+                "reason_codes": ["scope_portal_conflict"],
+            },
+            "input_revision_ids": [str(revision.revision_id)],
+            "input_sha256": artifact.input_sha256,
+            "queue_type": "audit_finding",
+            "rule_versions": {
+                "audit_code": "audit-code-v1",
+                "audit_rule": "audit-rule-v1",
+            },
+            "task_id": str(revision.task_id),
+            "updated_at": artifact.created_at.isoformat().replace("+00:00", "Z"),
+        }
+    ]
+
+
+def test_operational_issue_appears_in_review_queue_and_filters_by_error_code() -> None:
+    revision, assignment = submitted_revision("operational-review-queue")
+    issue = OperationalIssue.objects.create(
+        assignment=assignment,
+        kind=OperationalIssue.Kind.MEDIA_DELIVERY,
+        error_code="image_unavailable",
+    )
+    administrator = User.objects.create_user(
+        username="operational-review-queue-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+
+    response = client.get(
+        f"/api/admin/work-batches/{assignment.batch_id}/review-queue?reason_code=image_unavailable"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == [
+        {
+            "conflict_summary": {
+                "error_code": "image_unavailable",
+                "issue_kind": "media_delivery",
+                "reason_codes": ["image_unavailable"],
+            },
+            "input_revision_ids": [],
+            "input_sha256": None,
+            "queue_id": str(issue.issue_id),
+            "queue_type": "operational_issue",
+            "rule_versions": {},
+            "task_id": str(revision.task_id),
+            "updated_at": issue.created_at.isoformat().replace("+00:00", "Z"),
+        }
+    ]
 
 
 def test_task_10_9_does_not_propose_while_an_assignment_is_outstanding() -> None:
