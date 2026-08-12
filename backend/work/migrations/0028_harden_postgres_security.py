@@ -52,30 +52,30 @@ BEGIN
             WHERE rolname = api_role
         ) THEN
             EXECUTE pg_catalog.format(
-                'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM %I',
+                'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM %%I',
                 api_role
             );
             EXECUTE pg_catalog.format(
-                'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM %I',
+                'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM %%I',
                 api_role
             );
             EXECUTE pg_catalog.format(
-                'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM %I',
-                api_role
-            );
-            EXECUTE pg_catalog.format(
-                'ALTER DEFAULT PRIVILEGES IN SCHEMA public '
-                'REVOKE ALL PRIVILEGES ON TABLES FROM %I',
+                'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM %%I',
                 api_role
             );
             EXECUTE pg_catalog.format(
                 'ALTER DEFAULT PRIVILEGES IN SCHEMA public '
-                'REVOKE ALL PRIVILEGES ON SEQUENCES FROM %I',
+                'REVOKE ALL PRIVILEGES ON TABLES FROM %%I',
                 api_role
             );
             EXECUTE pg_catalog.format(
                 'ALTER DEFAULT PRIVILEGES IN SCHEMA public '
-                'REVOKE ALL PRIVILEGES ON FUNCTIONS FROM %I',
+                'REVOKE ALL PRIVILEGES ON SEQUENCES FROM %%I',
+                api_role
+            );
+            EXECUTE pg_catalog.format(
+                'ALTER DEFAULT PRIVILEGES IN SCHEMA public '
+                'REVOKE ALL PRIVILEGES ON FUNCTIONS FROM %%I',
                 api_role
             );
         END IF;

@@ -95,6 +95,8 @@ def test_supabase_security_hardening_migration_revokes_api_access() -> None:
     assert "anon" in schema_editor.statements[-1]
     assert "authenticated" in schema_editor.statements[-1]
     assert "service_role" in schema_editor.statements[-1]
+    assert "%%I" in schema_editor.statements[-1]
+    assert " FROM %I" not in schema_editor.statements[-1].replace("%%I", "")
 
 
 def test_supabase_security_hardening_is_a_noop_outside_postgresql() -> None:
