@@ -55,13 +55,16 @@
 - [x] 5.9 【Red/Green】实现 2D point pair 增删拖动、顺序/seam 编辑和本地 Undo/Redo；编辑器仅在工作区状态为 editable 时挂载，冲突 tab 不得编辑；组件测试验证稳定 ID 与派生 wall/BEV 不进入 canonical 状态。本项只验收内存组件，真实 Assignment/CurrentDraft 接入和持久化留在 6.1/6.2。
 - [x] 5.10 【Red】为稳定 portal ID、四点规范化 geometry、door/architectural_opening/window/open_connection/unknown、evidence status、host edge 引用与跨 seam/媒体重放编写 canonical/编辑器测试。
 - [x] 5.11 【Green】实现 POC 最小 PortalObservation 编辑与服务器校验；jamb/top/bottom 由四点派生，不在本切片实现 protocol closure、DerivedTargetArtifact、floor-plan/cell graph 或 BIM。
+- [x] 5.12 【Red】为点级局部放大镜编写组件测试：pointer move 只更新瞬态媒体裁剪与坐标，取消不改变 Draft，只有显式 pointerup 产生一次可撤销移动。
+- [x] 5.13 【Green】实现无新增依赖的 SVG 点级放大镜并复用现有 pair 连线；不保存裁剪、不吸附、不自动拉直、不联动其他点，也不把辅助元数据写入 canonical。
+- [ ] 5.14 【V2 候选】为 point-level occlusion/evidence 设计新 schema_version、旧 Revision 兼容读取、Task 发布边界和导出迁移；在该合同与代表性数据确认前不向 `annotation-meta-v1` 偷加字段。
 
 ## 6. Draft、Revision、Review 与返工切片
 
 - [x] 6.1 【Red】为每 DraftCycle 单 CurrentDraft、防抖 autosave、draft_version 乐观并发和保存状态，以及真实 Assignment 归属、session、workspace token、tab_id、未过期租约和接管状态校验编写 API/E2E 测试（`draft-revision-review`）。
 - [x] 6.2 【Green】在 CurrentDraft 读写的真实事务边界内实现领域归属与工作区校验，并实现服务器 CurrentDraft 与前端保存状态机；旧客户端写入必须进入冲突而非 last-write-wins。
 - [x] 6.3 【Red】为首次提交事务、expected state_sha、幂等键、响应丢失重试不重复建 Revision，以及接管后旧设备提交失败编写并发测试。
-- [ ] 6.4 【Green】在提交事务内重新校验 Assignment 归属与工作区状态，实现 Revision 冻结服务并证明已提交内容不能 UPDATE/DELETE。
+- [x] 6.4 【Green】在提交事务内重新校验 Assignment 归属与工作区状态，实现 Revision 冻结服务并证明已提交内容不能 UPDATE/DELETE。（真实 PostgreSQL 17 迁移往返与 Revision 原始 SQL/ORM 不可变专测已通过。）
 - [x] 6.5 【Red·POC】为批次开放且尚无外部复核时，从最新 Revision 新建 DraftCycle、提交递增 Revision、保持新提交 `unreviewed`，以及越权/终止状态拒绝编写测试；旧 ReviewRecord 绑定由 6.7/6.8 验收，不为本项伪造 Review。
 - [x] 6.6 【Green·POC】实现修订入口、最新 Revision 复制与周期归因，运行 Draft/Revision 回归；ReviewRecord、changes_requested 与裁决仍留在 6.7/6.8。
 - [x] 6.7 【Red】为管理员专用且追加式不可变的 ReviewRecord、`accepted | changes_requested`、改判 supersedes、新工人 Revision unreviewed、Task 级互斥交付指针、管理员 AdjudicatedRevision 不冒充工人，以及管理员真实敏感读取审计编写测试；完整 ReworkRequest 留在 6.9/6.10。
@@ -79,6 +82,7 @@
 - [x] 7.6 【Green】把信息性 wireframe 挂入真实 Assignment 编辑器；提交事务不读取其成功状态，只在本地 PreviewResult/UI 暴露可追溯 `engine_version`/`authority`，Revision 不持久化这些非权威预览元数据。
 - [ ] 7.7 【Post-POC】待专家工具和算法合同稳定后，为正式 geometry engine、结构诊断、Manhattan/A-line authority 另行确认 amendment；未确认前不实现提交门槛。
 - [ ] 7.8 【Post-POC】正式 engine 获确认后再建立代表性 MP3D/ZInD golden、跨浏览器数值/视觉回归与 GPU 差异记录。
+- [ ] 7.9 【Post-POC】建立专家侧独立 3D projection、Manhattan residual、约束 completion candidate 与结构审计输出；冻结输入 hash/引擎/规则版本，默认只进入复核层且永不自动回写 Revision。
 
 ## 8. Active time 与离线恢复切片
 
@@ -107,11 +111,11 @@
 - [x] 10.1 【Red】为 Revision 提交事务写唯一 outbox、worker 抢占、失败重试和 input hash 幂等编写数据库并发测试（`adaptive-consensus-routing`）。
 - [ ] 10.2 【Green】实现 PostgreSQL Job/Outbox 与独立 worker，不引入 Redis/Celery；暴露积压、失败和 attempt 指标。
 - [x] 10.3 【Red】为每名工人最新未反馈有效 Revision 去重、无效/外部事故处置、反馈后 Revision 排除，以及 scope/portal/geometry/evidence 分组件 eligible manifest 编写测试。
-- [ ] 10.4 【Green】实现不可变 SubmissionAssessment、eligible input manifest 和组件级聚合输入，不因单个 scope observation 丢弃有效 geometry/portal。（实现与 SQLite 数据库触发器证据已完成；PostgreSQL 触发器专测已加入 CI，等待真实 PostgreSQL 17 绿灯后勾选。）
+- [x] 10.4 【Green】实现不可变 SubmissionAssessment、eligible input manifest 和组件级聚合输入，不因单个 scope observation 丢弃有效 geometry/portal。（真实 PostgreSQL 17 迁移往返、触发器 UPDATE/DELETE 拒绝及组件输入专测已通过。）
 - [x] 10.5 【Red】为 ScopePolicy 自动处置白名单、representation evidence 支持、needs_scope_review、有效 geometry/portal 冲突、needs_more/unresolved 编写固定与属性测试。
-- [ ] 10.6 【Green】实现增量 scope evidence 聚合与 TaskEligibilityArtifact；只有冻结政策允许且无有效结构冲突时可自动 close。（实现、SQLite 冻结/不可变触发器与真实 worker 集成已完成；PostgreSQL 专测已加入 CI，等待 PostgreSQL 17 绿灯后勾选。）
+- [x] 10.6 【Green】实现增量 scope evidence 聚合与 TaskEligibilityArtifact；只有冻结政策允许且无有效结构冲突时可自动 close。（真实 PostgreSQL 17 冻结政策、不可变 Artifact 与 worker 集成专测已通过。）
 - [x] 10.7 【Red】为 `canonical-2d-consensus-v1` 的周期 geometry/portal complete-link 聚类、唯一主簇、最少 3 支持、margin≥2、3:2 多峰、分组件真实 medoid 指针和禁止平均角点编写测试。
-- [ ] 10.8 【Green】新增 `consensus-policy-v2` 并保留旧 v1 解释；实现版本化 portal/geometry aggregation 与不可变 TaskConsensusArtifact。默认 `k_max=5` 但继续由新 WorkBatch 发布前配置；管理员 Adjudication 不覆盖旧 Artifact。（实现、管理员可见政策、SQLite 不可变触发器和真实 Job→Artifact 集成已完成；PostgreSQL 专测已加入 CI，等待 PostgreSQL 17 绿灯后勾选。）
+- [x] 10.8 【Green】新增 `consensus-policy-v2` 并保留旧 v1 解释；实现版本化 portal/geometry aggregation 与不可变 TaskConsensusArtifact。默认 `k_max=5` 但继续由新 WorkBatch 发布前配置；管理员 Adjudication 不覆盖旧 Artifact。（真实 PostgreSQL 17 不可变 Artifact 与 Job→Artifact 集成专测已通过。）
 - [x] 10.9 【Red/Green】实现批次 ConsensusPolicy：默认 3→逐一追加→5、发布前可配置、稳定停止、达到上限不无限追加；输出 purpose=`consensus_addition` 的 AssignmentProposal 而非首版自动 Assignment。
 - [x] 10.10 用故意共同错误、多峰、scope reason 滥用、有效 partial geometry 和结构失败夹具验证边界，确保稳定多数不被测试伪装成绝对 GT。
 - [ ] 10.11 【政策后置】仅在 Task 冻结且明确启用 target/partition/closure policy 后，为 `physical=false` DerivedTargetArtifact 编写测试并实现 source portal/政策谱系；未确认政策时不得生成占位 Artifact。
@@ -146,7 +150,7 @@
 - [x] 12.7 【Red】为注册 AuditRun、冻结 hash 输入、不可变 Artifact、审计不能修改 Revision 编写权限和副作用测试。
 - [x] 12.8 【Green】实现注册审计框架及 canonical 结构、scope-portal、时间完整性审计类型；拒绝任意脚本。Manhattan 审计仅在 7.7 的正式 authority 获确认并注册后加入，不以占位算法冒充。
 - [x] 12.9 【Red】为 BatchExportSnapshot 全身份/版本/媒体 hash/Revision/Review/Consensus、latest/selected 视图和排除 Draft 编写 schema/golden 测试。
-- [ ] 12.10 【Green】实现异步导出和 manifest 校验；输出明确标记为批次快照而非 Final Gold/DatasetRelease。（实现、管理员 API/审计、SQLite 不可变触发器与 worker 集成已完成；PostgreSQL 专测已加入 CI，等待 PostgreSQL 17 绿灯后勾选。）
+- [x] 12.10 【Green】实现异步导出和 manifest 校验；输出明确标记为批次快照而非 Final Gold/DatasetRelease。（真实 PostgreSQL 17 不可变导出快照、worker 与管理员 API/审计专测已通过。）
 - [ ] 12.11 验证高影响管理员操作均产生 actor/target/reason/correlation 审计事件，敏感字段经过日志脱敏。（通用领域目标/原因/关联标识，以及当前 Task 发布、Assignment 创建、批次 freeze/reopen、Review、Adjudication、返工和 Snapshot 路径已完成；Task 取消/撤销、路由覆盖、Export 与批量删除须随真实端点补齐，不以占位事件冒充。）
 
 ## 13. 国际化、隐私、运维和恢复切片

@@ -54,6 +54,63 @@ describe("AnnotationEditor", () => {
     vi.restoreAllMocks();
   });
 
+  it("PAP-ANN-SC-027 PAP-ANN-SC-028 keeps the magnifier passive and commits only an explicit drag", async () => {
+    const onChange = vi.fn();
+    render(
+      <AnnotationEditor
+        backgroundImageUrl="https://media.example/panorama.jpg"
+        initialState={initialState}
+        onChange={onChange}
+      />,
+    );
+    const canvas = screen.getByLabelText("全景规范化坐标编辑区");
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 500,
+      left: 0,
+      right: 1000,
+      toJSON: () => ({}),
+      top: 0,
+      width: 1000,
+      x: 0,
+      y: 0,
+    });
+
+    fireEvent.pointerDown(screen.getByLabelText("第 1 对顶点"), {
+      clientX: 100,
+      clientY: 40,
+      pointerId: 27,
+    });
+    fireEvent.pointerMove(canvas, { clientX: 250, clientY: 125, pointerId: 27 });
+
+    const magnifier = screen.getByRole("img", { name: "第 1 对顶点局部放大镜" });
+    expect(magnifier.querySelector("image")).toHaveAttribute(
+      "href",
+      "https://media.example/panorama.jpg",
+    );
+    expect(magnifier).toHaveAttribute("data-focus-u", "0.25");
+    expect(magnifier).toHaveAttribute("data-focus-v", "0.25");
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.pointerCancel(canvas, { pointerId: 27 });
+    expect(screen.queryByRole("img", { name: "第 1 对顶点局部放大镜" })).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(screen.getByLabelText("第 1 对顶点"), {
+      clientX: 100,
+      clientY: 40,
+      pointerId: 28,
+    });
+    fireEvent.pointerMove(canvas, { clientX: 250, clientY: 125, pointerId: 28 });
+    fireEvent.pointerUp(canvas, { clientX: 250, clientY: 125, pointerId: 28 });
+
+    await waitFor(() =>
+      expect(latestState(onChange).pairs[0].top).toMatchObject({ u: 0.25, v: 0.25 }),
+    );
+    expect(screen.queryByRole("img", { name: "第 1 对顶点局部放大镜" })).toBeNull();
+    expect(latestState(onChange).pairs[0].bottom).toEqual(initialState.pairs[0].bottom);
+  });
+
   it("PAP-ANN-SC-003 keeps top and bottom coordinates independent while dragging in 2D", async () => {
     const onChange = vi.fn();
     render(<AnnotationEditor initialState={initialState} onChange={onChange} />);

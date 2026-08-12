@@ -778,6 +778,24 @@
           ]
         },
         {
+          "requirement_id": "PAP-ANN-REQ-014",
+          "title": "工人端精度辅助没有 canonical authority",
+          "scenarios": [
+            {
+              "title": "拖动时检查局部细节",
+              "test_ids": ["PAP-ANN-SC-027"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/annotation/AnnotationEditor.test.tsx"]
+            },
+            {
+              "title": "取消精度辅助检查",
+              "test_ids": ["PAP-ANN-SC-028"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/annotation/AnnotationEditor.test.tsx"]
+            }
+          ]
+        },
+        {
           "requirement_id": "PAP-ANN-REQ-008",
           "title": "服务器验证 canonical 数据",
           "scenarios": [

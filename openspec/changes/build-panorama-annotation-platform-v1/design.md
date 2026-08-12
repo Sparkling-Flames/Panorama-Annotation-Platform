@@ -14,6 +14,7 @@
 - 先贯通 Manual Assignment、真实媒体、2D/Scope/Portal、autosave、信息性 wireframe、不可变 Revision 与管理员读取的在线 POC。
 - 保证 worker/task/assignment/revision/media/prediction 的稳定身份、不可变历史和版本解释能力。
 - 在工人设备本地提供动作完成后刷新、只读且绑定当前 Draft `state_sha` 的信息性 wireframe。
+- 在 2D 真源上提供瞬态点级放大和明确 pair 关联，使工人看清边界但不引入自动吸附或隐式几何写回。
 - 用服务端事件区间推导 active time，支持离线编辑和离线计时恢复。
 - 用动态追加、scope/portal/geometry/evidence 组件级聚合和 LOO 证据减少逐图人工审计，并滚动更新 provisional 工人画像。
 - POC 后再用 Trap PreScreen、CalibrationCampaign、anchor/bridge/probe、LOO 与裁决建立可追溯的 verified/provisional/proxy 工人证据，并把校准与 task-level 聚合分开。
@@ -25,7 +26,7 @@
 - 不迁移、不修改也不替代当前论文实验运行时。
 - 不构建通用标注模板平台，不兼容 Label Studio 任意 `result[]` 类型。
 - 不实现公共注册、企业组织树、工资支付、聊天、24x7 运维或跨区域热备。
-- 不在首版实现 CAD、桌面客户端、工人本地媒体包、worker-facing A-line、云端在线推理、adaptive_auto、DatasetRelease/ModelRelease UI。
+- 不在首版实现 CAD、桌面客户端、工人本地媒体包、worker-facing A-line、自动 snapping/拉直/拓扑修改、云端在线推理、adaptive_auto、DatasetRelease/ModelRelease UI。
 - 不在首版实现 BIM、多房间 floor-plan reconstruction 或把 portal 自动等同于 cell cut。
 - 不把多人共识宣称为绝对真值；异常、多峰和抽检仍进入管理员复核。
 
@@ -35,7 +36,7 @@
 
 平台采用一个后端代码库、一个浏览器前端和一个 PostgreSQL 主数据库。后端按领域模块分隔：identity、media、work、annotation、activity、prediction、consensus、routing、review、analytics、audit。模块通过显式服务接口和数据库事务协作，不通过共享可变 JSON 或跨服务消息拼接业务状态。
 
-推荐实现栈为 Python/Django 类事务型 Web 后端、TypeScript/React 类 SPA、PostgreSQL 和腾讯云 COS。POC wireframe 使用现有浏览器/SVG 能力；WebGL/Three.js 类渲染层只在 7.7 的正式 geometry authority 获确认后评估。实施时选择受维护版本并锁定依赖，技术栈变化不能改变 capability specs。
+已批准的实现栈固定为 Django 事务型 Web 后端、TypeScript/React SPA、PostgreSQL、腾讯云 COS、常驻 Web 进程和独立常驻 worker，按一个模块化单体代码库部署。POC wireframe 与点级放大镜使用现有浏览器/SVG 能力；WebGL/Three.js 类渲染层只在 7.7 的正式 geometry authority 获确认后评估。实施时锁定受维护版本，技术栈变化不能改变 capability specs。
 
 选择理由：几十名工人的并发不值得承担微服务、消息中间件和分布式事务成本；账户权限、Revision 冻结、幂等提交和 Assignment 状态更适合单数据库事务。与“只买 COS”相比，平台仍需要计算和关系数据库承担协调；但媒体直连 COS 后，应用服务器主要承载小体积 API 流量。
 
@@ -81,6 +82,8 @@ Active time 首版只实现 `active-time-v1`，Task 在发布前冻结该版本�
 
 2D 编辑器负责点对、顺序、seam、Scope/Portal、元标签和本地 Undo/Redo。POC 以无新增依赖的 `poc-wireframe-v1` 在离散动作完成并防抖后读取不可变 DraftState 副本，返回带 `state_sha`、`engine_version` 和 `authority=informational` 的 PreviewResult；新状态使旧结果失效，普通 pointer move 不触发重建。预览始终只读，不得回写 canonical。
 
+点级放大镜、pair 连线、seam 标记以及未来边缘/边界/模糊/开口提示属于同一只读辅助层。它们只能读取当前已授权 MediaVariant 与内存 DraftState，瞬态裁剪和 pointer preview 不持久化；只有工人明确完成 add/delete/move/order/seam 操作时，2D 真源才产生一个可撤销状态变更。取消拖动或关闭提示必须保持 `state_sha` 不变。辅助层不得执行 snapping、自动竖直化、Manhattan 对齐、多点联动或 topology completion。
+
 POC 提交门槛只包含：
 
 1. canonical/schema 硬校验；
@@ -93,7 +96,7 @@ POC 提交门槛只包含：
 
 Task mode 决定 display policy，而不是管理员选择相似前端模板。Manual 序列化器、查询和缓存键从类型层面排除 Prediction payload；Semi 在发布时必须绑定冻结 PredictionArtifact。Prediction 由管理员从本地推理输出导入、校验和预览，运行时不调用模型。
 
-未来 A-line 使用独立注册 Assist engine 和 AssistArtifact，不嵌进 Revision 模型。V1 可实现合同、feature flag 和审计事件，但普通工人入口关闭。任何复用 Label Studio 开源实现前必须逐文件核验许可证、保留必要声明，并用平台领域接口包裹；不得复制其通用数据模型作为 canonical schema。
+未来 A-line 使用独立注册 Assist engine 和 AssistArtifact，不嵌进 Revision 模型。专家侧可对冻结 Revision 生成 3D projection、Manhattan residual、约束 completion candidate 与结构审计，但结果必须保存输入 hash、引擎/规则版本和 informational/advisory authority，默认进入独立复核层而不回写 Revision。V1 可实现合同、feature flag 和审计事件，但普通工人入口关闭。任何复用 Label Studio 开源实现前必须逐文件核验许可证、保留必要声明，并用平台领域接口包裹；不得复制其通用数据模型作为 canonical schema。
 
 ### 7. Active time 使用租约事件而非客户端累计秒数
 
