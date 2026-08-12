@@ -31,7 +31,7 @@ def create_rule_trigger(_apps: Any, schema_editor: Any) -> None:
                 RAISE EXCEPTION 'Published task activity rules are immutable.'
                     USING ERRCODE = '23000';
             END;
-            $$ LANGUAGE plpgsql
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
             """
         )
         schema_editor.execute(

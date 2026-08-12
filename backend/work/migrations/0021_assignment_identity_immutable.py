@@ -21,7 +21,7 @@ def create_trigger(_apps: Any, schema_editor: Any) -> None:
                 END IF;
                 RETURN NEW;
             END;
-            $$ LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
 
             CREATE TRIGGER work_assignment_identity_immutable
             BEFORE UPDATE ON work_assignment

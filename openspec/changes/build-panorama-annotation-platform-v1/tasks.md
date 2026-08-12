@@ -163,6 +163,8 @@
 - [ ] 13.6 配置数据库每日备份 30 天、关键操作前额外备份/导出和 COS 不可变/恢复窗口；证据为上线前完整恢复演练。
 - [ ] 13.7 验证全球测试节点的压缩/高清首字节、失败和回退指标可按匿名化地区聚合；CDN 仍不在首版依赖中。
 - [x] 13.8 添加仓库隔离测试，确保构建、测试、部署和运行不读取 `D:\Work\HOHONET` 或 Label Studio 数据库。（CI 扫描当前及未来执行面、构建/依赖清单和软链接目标；真实生产部署验收仍由 13.5/14.7 完成。）
+- [ ] 13.9 【Red/Green】把 Supabase 定位为仅托管 PostgreSQL：固定 21 个触发器函数的 `search_path`，撤销 `PUBLIC`/`anon`/`authenticated`/`service_role` 对 Django `public` 对象及当前 owner 默认对象的权限，并在临时 PostgreSQL 17 中用同名角色验证迁移、回滚往返和有效权限均安全。
+- [ ] 13.10 在生产 Supabase Dashboard 禁用 Data API 或从 exposed schema 移除 `public`，经 Django release migration 部署 13.9 后只读复核对象权限和 security advisor；不得用 Supabase migration history 形成第二套 DDL authority。
 
 ## 14. 端到端验收与上线门槛
 

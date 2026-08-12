@@ -34,7 +34,7 @@ def create_triggers(_apps: Any, schema_editor: Any) -> None:
             BEGIN
                 RAISE EXCEPTION 'Prediction artifacts are immutable.' USING ERRCODE = '23000';
             END;
-            $$ LANGUAGE plpgsql
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
             """
         )
         schema_editor.execute(
@@ -75,7 +75,7 @@ def create_triggers(_apps: Any, schema_editor: Any) -> None:
                 END IF;
                 RETURN NEW;
             END;
-            $$ LANGUAGE plpgsql
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
             """
         )
         schema_editor.execute(

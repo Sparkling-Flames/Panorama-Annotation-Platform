@@ -166,6 +166,8 @@ AuditRun 只允许注册类型，读取冻结 hash，输出不可变 Artifact，
 
 后端统一执行对象级权限；密码不可回读；签名 URL 最小对象范围和短 TTL；日志不输出密码、令牌、签名参数、完整 scope `other` 私密文本或媒体内容。生产日志使用 request/job/event 关联 ID，记录 API 错误率、保存冲突、签名失败、Job 延迟、事件积压、3D 客户端错误和 COS 性能。
 
+Supabase 仅作为 Django 直连的托管 PostgreSQL，不是浏览器数据访问层。生产项目关闭 Data API 或从 exposed schema 移除 `public`；`anon`、`authenticated`、`service_role` 和 `PUBLIC` 不持有 Django 业务表、序列或函数权限，迁移 owner 的 default privileges 同步收紧。所有 PL/pgSQL 触发器函数固定 `search_path=pg_catalog, public`，且 `public` schema 不允许非 owner 创建对象。Django migration graph 是唯一 DDL authority；若未来启用 Supabase Data API，必须用独立 schema、最小 GRANT、RLS 和对象级越权 E2E 另行验收，不在现有 `public` schema 上临时放权。
+
 `data-notice-v1` 由服务端固定中英文 copy 和五类最小收集范围；工人必须保存当前版本的幂等确认后才能取得或写入工作区，版本变化后重新确认。确认请求不接收 IP 或设备字段；IP/必要设备安全数据只进入独立短期安全日志且不进质量画像。高影响管理员操作进入不可变 AuditEvent。
 
 ## 已确认决策覆盖矩阵

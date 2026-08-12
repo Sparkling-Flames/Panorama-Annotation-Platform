@@ -22,7 +22,7 @@ POSTGRES_CREATE = (
         END IF;
         RETURN NEW;
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER work_analysis_job_input_immutable
@@ -35,7 +35,7 @@ POSTGRES_CREATE = (
     BEGIN
         RAISE EXCEPTION 'Audit artifacts are immutable.' USING ERRCODE = '23000';
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER work_audit_artifact_immutable

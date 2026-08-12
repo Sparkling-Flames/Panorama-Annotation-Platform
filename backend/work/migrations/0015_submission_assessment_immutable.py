@@ -11,7 +11,7 @@ POSTGRES_CREATE = (
     BEGIN
         RAISE EXCEPTION 'Submission assessments are immutable.' USING ERRCODE = '23000';
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER work_submission_assessment_immutable

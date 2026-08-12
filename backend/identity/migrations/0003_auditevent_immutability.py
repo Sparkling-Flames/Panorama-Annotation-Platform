@@ -10,7 +10,7 @@ RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'Audit events are immutable.' USING ERRCODE = '23000';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
 
 CREATE TRIGGER identity_audit_event_immutable
 BEFORE UPDATE OR DELETE ON identity_auditevent

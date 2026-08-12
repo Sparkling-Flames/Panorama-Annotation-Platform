@@ -11,7 +11,7 @@ RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'Registered COS object metadata is immutable.' USING ERRCODE = '23000';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
 
 CREATE TRIGGER media_object_registration_immutable
 BEFORE UPDATE OR DELETE ON media_mediaobjectregistration
