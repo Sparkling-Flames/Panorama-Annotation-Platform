@@ -109,7 +109,7 @@
 ## 10. Post-POC：Job、动态共识与异常复核切片
 
 - [x] 10.1 【Red】为 Revision 提交事务写唯一 outbox、worker 抢占、失败重试和 input hash 幂等编写数据库并发测试（`adaptive-consensus-routing`）。
-- [ ] 10.2 【Green】实现 PostgreSQL Job/Outbox 与独立 worker，不引入 Redis/Celery；暴露积压、失败和 attempt 指标。
+- [x] 10.2 【Green】实现 PostgreSQL Job/Outbox 与独立 worker，不引入 Redis/Celery；暴露积压、失败和 attempt 指标。（Revision 与唯一 AnalysisJob 同事务、`SKIP LOCKED` 唯一抢占、失败重试/幂等、管理员 metrics、独立 Procfile worker 及三队列公平轮询均已通过；真实 PostgreSQL 17 并发专测已通过。）
 - [x] 10.3 【Red】为每名工人最新未反馈有效 Revision 去重、无效/外部事故处置、反馈后 Revision 排除，以及 scope/portal/geometry/evidence 分组件 eligible manifest 编写测试。
 - [x] 10.4 【Green】实现不可变 SubmissionAssessment、eligible input manifest 和组件级聚合输入，不因单个 scope observation 丢弃有效 geometry/portal。（真实 PostgreSQL 17 迁移往返、触发器 UPDATE/DELETE 拒绝及组件输入专测已通过。）
 - [x] 10.5 【Red】为 ScopePolicy 自动处置白名单、representation evidence 支持、needs_scope_review、有效 geometry/portal 冲突、needs_more/unresolved 编写固定与属性测试。
