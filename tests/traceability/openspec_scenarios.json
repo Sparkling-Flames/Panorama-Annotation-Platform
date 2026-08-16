@@ -1032,14 +1032,23 @@
             {
               "title": "新设备接管",
               "test_ids": ["PAP-IAM-SC-007"],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": ["e2e/tests/workspace-coordination.spec.ts"]
             },
             {
               "title": "同一浏览器打开第二个标注页",
               "test_ids": ["PAP-IAM-SC-008"],
-              "coverage_status": "planned",
-              "test_files": []
+              "coverage_status": "implemented",
+              "test_files": ["e2e/tests/workspace-coordination.spec.ts"]
+            },
+            {
+              "title": "当前标注页刷新",
+              "test_ids": ["PAP-IAM-SC-012"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "frontend/src/workspace/WorkerWorkspaceGate.test.tsx",
+                "e2e/tests/assignment-switching.spec.ts"
+              ]
             },
             {
               "title": "活动租约正常过期",
