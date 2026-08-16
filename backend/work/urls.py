@@ -171,6 +171,11 @@ urlpatterns = [
         name="admin-revision-rework-request",
     ),
     path(
+        "admin/revisions/<uuid:revision_id>/scope-rework",
+        views.admin_revision_scope_rework_view,
+        name="admin-revision-scope-rework",
+    ),
+    path(
         "admin/tasks/<uuid:task_id>/adjudications",
         views.admin_task_adjudications_view,
         name="admin-task-adjudications",

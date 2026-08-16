@@ -65,6 +65,10 @@ Assignment 的每个 DraftCycle SHALL 至多存在一个服务器端 CurrentDraf
 - **WHEN** 工人接受 ReworkRequest 并重新提交 annotatable 几何
 - **THEN** 系统创建新的 feedback-exposed Revision，分别记录返工时间和结果，且不删除初始 scope observation evidence
 
+#### Scenario: 管理员从平台创建 Scope-only 返工
+- **WHEN** 管理员在复核队列中选择一份 `needs_scope_review` 或 `representation_oos` Revision，确认最终处置为 annotatable，并提交截止时间和必要文字指导
+- **THEN** 系统在同一事务内追加 `changes_requested` ReviewRecord、创建只把该源 Revision 的 Scope 改为 annotatable 且原样保留其 geometry/portal 的 AdjudicatedRevision，并创建 ReworkRequest；该操作不得接收客户端 geometry/portal，不得创建或移动 TaskDeliverySelection，任一步失败不得留下部分记录
+
 #### Scenario: 返工逾期
 - **WHEN** ReworkRequest 超过期限仍未提交
 - **THEN** 系统标记 `rework_overdue` 并保留原始证据，不伪造完成 Revision

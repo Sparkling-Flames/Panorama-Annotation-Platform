@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../api";
 import { formatLocalTimestamp } from "../locale";
+import { ScopeReworkPanel } from "./ScopeReworkPanel";
 
 type WorkBatch = { batch_id: string; name: string; status: string };
 
@@ -281,7 +282,14 @@ export function AdminOperations() {
                         <td>{item.task_id}</td>
                         <td>{item.queue_type}</td>
                         <td>{item.conflict_summary.reason_codes.join(", ")}</td>
-                        <td>{item.input_revision_ids.join(", ")}</td>
+                        <td>
+                          {item.input_revision_ids.map((revisionId) => (
+                            <div key={revisionId}>
+                              <code>{revisionId}</code>
+                              <ScopeReworkPanel revisionId={revisionId} />
+                            </div>
+                          ))}
+                        </td>
                         <td>
                           {Object.entries(item.rule_versions)
                             .map(([rule, version]) => `${rule}: ${version}`)
