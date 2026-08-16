@@ -1,4 +1,4 @@
-> 当前实施前沿：先完成 Manual 在线 POC（真实 Assignment/媒体 → 2D/Scope/Portal → autosave → `poc-wireframe-v1` 信息性预览 → 不可变 Revision → 管理员读取）。PreScreen、Calibration、画像、动态路由及正式 geometry/Manhattan/A-line 均为 post-POC，不得提前创建无调用方模型或提交门槛。
+> 当前实施前沿：先完成 Manual 在线 POC（真实 Assignment/媒体 → 2D/Scope/Portal → autosave → `poc-wireframe-v1` 信息性预览 → 不可变 Revision → 管理员读取）。PreScreen、Calibration、画像和动态路由为 post-POC；外部 geometry/Manhattan/A-line 集成不属于本 V1 change，必须等待其合同稳定后另开 change，不得提前创建适配器、无调用方模型或提交门槛。
 
 ## 1. 实施准入与工程基线
 
@@ -57,7 +57,8 @@
 - [x] 5.11 【Green】实现 POC 最小 PortalObservation 编辑与服务器校验；jamb/top/bottom 由四点派生，不在本切片实现 protocol closure、DerivedTargetArtifact、floor-plan/cell graph 或 BIM。
 - [x] 5.12 【Red】为点级局部放大镜编写组件测试：pointer move 只更新瞬态媒体裁剪与坐标，取消不改变 Draft，只有显式 pointerup 产生一次可撤销移动。
 - [x] 5.13 【Green】实现无新增依赖的 SVG 点级放大镜并复用现有 pair 连线；不保存裁剪、不吸附、不自动拉直、不联动其他点，也不把辅助元数据写入 canonical。
-- [ ] 5.14 【V2 候选】为 point-level occlusion/evidence 设计新 schema_version、旧 Revision 兼容读取、Task 发布边界和导出迁移；在该合同与代表性数据确认前不向 `annotation-meta-v1` 偷加字段。
+
+> V1 边界：point-level occlusion/evidence 未获批，不是本 change 的待办；未来若确认产品语义，必须以独立 change、新 schema_version 和新 Task 进入，不能追写 `annotation-meta-v1` 或旧 Revision。
 
 ## 6. Draft、Revision、Review 与返工切片
 
@@ -80,9 +81,8 @@
 - [x] 7.4 【Green】实现动作完成触发和取消/过期机制，只保留 POC 所需的最小状态机。
 - [x] 7.5 【Red】为 wireframe 成功、失败、缺失或伪造均不得改变 canonical 校验和提交结果编写 Draft/Revision 集成测试。
 - [x] 7.6 【Green】把信息性 wireframe 挂入真实 Assignment 编辑器；提交事务不读取其成功状态，只在本地 PreviewResult/UI 暴露可追溯 `engine_version`/`authority`，Revision 不持久化这些非权威预览元数据。
-- [ ] 7.7 【Post-POC】待专家工具和算法合同稳定后，为正式 geometry engine、结构诊断、Manhattan/A-line authority 另行确认 amendment；未确认前不实现提交门槛。
-- [ ] 7.8 【Post-POC】正式 engine 获确认后再建立代表性 MP3D/ZInD golden、跨浏览器数值/视觉回归与 GPU 差异记录。
-- [ ] 7.9 【Post-POC】建立专家侧独立 3D projection、Manhattan residual、约束 completion candidate 与结构审计输出；冻结输入 hash/引擎/规则版本，默认只进入复核层且永不自动回写 Revision。
+
+> V1 边界：正式 geometry engine、外部 A-line/Manhattan、专家 3D/结构产物及其 golden/authority 均不在本 change 验收范围；未来独立 change 必须基于当时稳定的真实合同重新规划，不能假定当前字段或输出形状。
 
 ## 8. Active time 与离线恢复切片
 
@@ -103,7 +103,7 @@
 - [x] 9.4 【Green】实现管理员本地推理结果解析、叠加预览、确认冻结；不实现运行时推理。
 - [x] 9.5 【Red/Green】实现 Semi 缺失/损坏/不兼容 prediction 技术阻断且绝不静默降级 Manual。
 - [x] 9.6 【Red】为 AssistArtifact input_state_sha 竞态、单候选、显式 Apply/Ignore/Undo 事件合同编写纯领域测试。
-- [x] 9.7 【Green】实现禁用状态的数据合同与 feature gate；普通工人请求 A-line 必须被拒绝，不实现 worker-facing A-line UI。
+- [x] 9.7 【Green】实现默认禁用的通用 Assist 数据合同与 feature gate；普通工人请求未注册外部 Assist 必须被拒绝。该休眠合同不是 A-line 适配器，不实现 worker-facing 外部工具 UI 或冻结其输出 schema。
 - [x] 9.8 建立第三方/Label Studio 代码复用许可证清单；未完成逐文件审查前不复制代码，证据为来源和许可证检查记录。
 
 ## 10. Post-POC：Job、动态共识与异常复核切片
@@ -148,7 +148,7 @@
 - [ ] 12.5 【Red/Green】实现 unresolved、多峰、scope 与有效 portal/geometry 冲突、模板化 reason、画像漂移与随机抽检复核队列；满足冻结 ScopePolicy 且未命中抽检的 Task 不要求逐张审核。（已实现由真实 `TaskAggregate`、`requires_review` AuditArtifact 和 OperationalIssue 驱动的复核队列、管理员读取/按 reason code 筛选、输入 Revision/冲突摘要/冻结规则版本；反复模板化 reason、画像漂移与随机抽检仍未实现。）
 - [x] 12.6 【Red/Green】实现最小 GuidanceEvent 和确认/feedback exposure，仅目标工人可查询并确认；未确认投递不得计作 feedback exposure，不提供工人回复、对话线程，也不集成微信/Upwork 聊天内容或支付。
 - [x] 12.7 【Red】为注册 AuditRun、冻结 hash 输入、不可变 Artifact、审计不能修改 Revision 编写权限和副作用测试。
-- [x] 12.8 【Green】实现注册审计框架及 canonical 结构、scope-portal、时间完整性审计类型；拒绝任意脚本。Manhattan 审计仅在 7.7 的正式 authority 获确认并注册后加入，不以占位算法冒充。
+- [x] 12.8 【Green】实现注册审计框架及 canonical 结构、scope-portal、时间完整性审计类型；拒绝任意脚本。外部 Manhattan/结构审计不属于 V1，只能由未来独立 change 注册，不以占位算法冒充。
 - [x] 12.9 【Red】为 BatchExportSnapshot 全身份/版本/媒体 hash/Revision/Review/Consensus、latest/selected 视图和排除 Draft 编写 schema/golden 测试。
 - [x] 12.10 【Green】实现异步导出和 manifest 校验；输出明确标记为批次快照而非 Final Gold/DatasetRelease。（真实 PostgreSQL 17 不可变导出快照、worker 与管理员 API/审计专测已通过。）
 - [ ] 12.11 验证高影响管理员操作均产生 actor/target/reason/correlation 审计事件，敏感字段经过日志脱敏。（通用领域目标/原因/关联标识，以及当前 Task 发布、Assignment 创建、批次 freeze/reopen、Review、Adjudication、返工和 Snapshot 路径已完成；Task 取消/撤销、路由覆盖、Export 与批量删除须随真实端点补齐，不以占位事件冒充。）
@@ -174,5 +174,5 @@
 - [ ] 14.4 建立动态质量 E2E：新工人→Trap PreScreen→common-anchor Calibration→production→scope/portal/geometry component aggregation→LOO 回算 provisional/verified profile→progression probe→能力—难度建议→管理员批准→后续画像更新不追溯改派。
 - [ ] 14.5 建立 Scope 返工 E2E：representation/geometry 冲突→管理员裁定 annotatable→不暴露他人几何/portal 的 ReworkRequest→feedback-exposed Revision。
 - [ ] 14.6 在真实 Assignment、Revision 和媒体端点运行对象级权限矩阵，并运行 CSRF/session、签名 URL、并发提交、Job 幂等、日志泄露和备份恢复安全回归；不得以 FakeOwnedResource 或控制面续租请求替代业务路径证据。
-- [ ] 14.7 运行全部后端、前端、E2E、几何 golden、OpenSpec strict validation 和依赖/许可证检查，保存版本化验收报告。
+- [ ] 14.7 运行全部后端、前端、E2E、当前已发布 canonical/预览能力的 golden、OpenSpec strict validation 和依赖/许可证检查，保存版本化验收报告；不得以未获批的外部 geometry/A-line 能力阻塞 V1。
 - [ ] 14.8 仅在用户验收通过后同步 `openspec/specs` 并 archive change；未通过项保持未勾选，不得以削弱测试或删除断言宣称完成。

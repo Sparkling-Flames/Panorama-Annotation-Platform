@@ -18,9 +18,9 @@
 
 本 amendment 固定 post-POC 首个可运行的 `canonical-2d-consensus-v1`：它只比较工人直接提交的规范化 2D point pair 与 PortalObservation，不宣称正式 3D、Manhattan 或绝对真值。WorkBatch 使用新增且冻结的 `consensus-policy-v2` 保存阈值、支持度、margin 与仍可按新批次调整的 `k_max`；旧 `consensus-policy-v1` 不被原地重新解释。Geometry 与 Portal 独立聚类并分别引用真实 medoid Revision，不平均角点。尚未确认 target/partition/closure policy 时不生成 DerivedTargetArtifact；该派生能力保留为后续明确政策切片。
 
-## Amendment（2026-08-13）：A-line 理念借鉴与精度辅助边界
+## Amendment（2026-08-13，2026-08-16 修订）：平台本地精度辅助与外部工具解耦边界
 
-本 amendment 采纳 Manhattan 仓库 A-line 分支总结中的可迁移理念，但不复制其代码、数据合同或运行时。平台继续只标相机当前所在空间，唯一 canonical geometry 仍是有序 top/bottom point pair；墙面、3D、Manhattan residual 和 completion candidate 都是派生结果。工人端可增加点级局部放大、明确 pair 关联和被动证据/结构提示，但这些辅助层没有 canonical authority，不得吸附、自动拉直、批量移动、改拓扑或回写点位。Manual 必须从空白状态开始；Semi 只读取管理员预先导入并冻结的 PredictionArtifact。点级遮挡/evidence 状态会在新 schema_version 及兼容迁移获得单独验收后进入后续版本，不追写现有 Revision。
+本 amendment 只采纳与外部实现无关的交互原则：平台继续只标相机当前所在空间，唯一 canonical geometry 仍是有序 top/bottom point pair；V1 可用现有浏览器能力提供点级局部放大、明确 pair 关联和坐标反馈，但这些辅助层没有 canonical authority，不得吸附、自动拉直、批量移动、改拓扑或回写点位。Manual 必须从空白状态开始；Semi 只读取管理员预先导入并冻结的 PredictionArtifact。外部 A-line/Manhattan 工具仍在演进，其代码、算法、产物 schema、版本节奏和 rollout 均不属于本 change，也不是 V1 的构建或运行时依赖；未来只有在合同稳定并经独立 OpenSpec change 批准后，才能决定是否通过边界适配器映射、扩展或替换平台的休眠 Assist 合同。点级遮挡/evidence 也仅在未来产品语义和代表性数据获批后通过新 schema_version 与新 Task 引入，不追写现有 Revision。
 
 ## What Changes
 
@@ -41,7 +41,7 @@
 - 提供管理员手工分配与系统辅助建议、按需生成不可变统计快照、异常复核队列、审计日志和按批次导出快照。
 - 建立中英双语、数据收集告知、最小化安全日志、备份恢复与版本追踪合同。
 - **BREAKING**：未来平台数据导出以平台领域 ID 和版本化 canonical schema 为准，不保证与 Label Studio 导出形状兼容；如需使用旧论文分析，只通过独立、一次性的离线转换器适配。
-- 明确首版非目标：不迁移当前 HOHONET/Label Studio 实验，不开放公共注册，不实现支付、聊天、CAD/BIM、桌面客户端、多房间 floor-plan reconstruction、worker-facing Manhattan A-line、自动 snapping/隐式点移动、云端在线推理、完全自动自适应路由或 Dataset/Model Release 管理；不把多数共识宣称为绝对真值。
+- 明确首版非目标：不迁移当前 HOHONET/Label Studio 实验，不开放公共注册，不实现支付、聊天、CAD/BIM、桌面客户端、多房间 floor-plan reconstruction、外部 A-line/Manhattan 集成或其产物合同、自动 snapping/隐式点移动、云端在线推理、完全自动自适应路由或 Dataset/Model Release 管理；不把多数共识宣称为绝对真值。
 - 本 change 继续作为唯一实施真源；先按已确认 POC 前沿推进，post-POC 内容在到达对应任务前不得抢跑。
 
 ## Capabilities
@@ -55,7 +55,7 @@
 - `draft-revision-review`: 草稿、Undo/Redo、幂等提交、不可变修订、复核、裁决和反馈后返工。
 - `preview-validation`: POC 信息性本地 wireframe、动作完成触发与状态哈希；正式 geometry/Manhattan authority 后移。
 - `activity-offline`: 活跃时间事件、服务器推导、离线队列、草稿冲突和恢复行为。
-- `prediction-assist`: Manual/Semi 隔离、冻结 PredictionArtifact 导入和未来 A-line AssistArtifact 边界。
+- `prediction-assist`: Manual/Semi 隔离、冻结 PredictionArtifact 导入和休眠的通用 AssistArtifact 边界；不冻结任何外部引擎合同。
 - `adaptive-consensus-routing`: Post-POC 的组件级动态共识、PreScreen/Calibration、LOO/anchor 证据、不可变在线画像、能力—难度匹配及路由防反馈循环；设计中保持 TaskAggregation、Worker Calibration/Profile 与 Routing 边界独立。
 - `admin-audit-export`: 管理员运营视图、按需统计快照、复核队列、指导记录、审计、批次导出与备份恢复。
 - `platform-boundaries`: 浏览器与国际化支持、隐私告知、版本追踪、HOHONET 隔离及未来适配边界。

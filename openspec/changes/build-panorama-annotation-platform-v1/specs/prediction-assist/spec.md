@@ -41,17 +41,17 @@ Semi Task 的 PredictionArtifact 缺失、哈希错误、坐标不兼容或无�
 - **THEN** 系统禁止编辑初始化和正式提交，产生可审计技术错误并通知管理员
 
 ### Requirement: Assist 候选绑定输入状态
-系统 SHALL 为未来注册 Assist 引擎保留版本化 AssistArtifact 合同，至少包含 assignment_id、base_revision_id、input_state_sha、engine_version、candidate_id 和 candidate_state_sha。候选只有在当前状态哈希仍等于 input_state_sha 时才可 Apply；候选不得自动移动正式点。
+系统 SHALL 保留默认关闭的版本化 AssistArtifact 平台合同，至少包含 assignment_id、base_revision_id、input_state_sha、engine_version、candidate_id 和 candidate_state_sha。候选只有在当前状态哈希仍等于 input_state_sha 时才可 Apply；候选不得自动移动正式点。该合同只定义平台内部的状态竞态与显式应用语义，不是任何外部 A-line/Manhattan 引擎的适配器或输出 schema；未来外部集成必须经独立 OpenSpec change 决定映射、扩展或替换方式。
 
 #### Scenario: 候选返回前状态已改变
 - **WHEN** Assist 候选基于状态 A 计算，但客户端当前已经处于状态 B
 - **THEN** 系统使候选失效并要求重新计算，不允许 Apply 到状态 B
 
-### Requirement: 首版不向普通工人开放 A-line
-Manual 在线 POC SHALL 不提供 Manhattan 诊断或 worker-facing A-line，只保留未来 AssistArtifact/事件的规范边界。未来启用时只允许注册、版本化、经过测试且由 feature policy 授权的引擎，并遵循 shadow、expert preview、熟练工人 pilot、普通生产的阶段门槛。
+### Requirement: 首版不集成外部 A-line/Manhattan
+Manual 在线 POC SHALL 不提供 Manhattan 诊断、worker-facing A-line 或外部工具适配器。V1 只保留默认关闭的通用 AssistArtifact/事件语义，不冻结外部工具的代码版本、算法、产物 schema 或 rollout。未来启用必须先通过独立 OpenSpec change 重新确认真实合同、权限、验证证据和阶段门槛。
 
-#### Scenario: 普通工人请求 A-line 候选
-- **WHEN** 首版普通工人客户端尝试调用 A-line Assist
+#### Scenario: 普通工人请求未注册外部候选
+- **WHEN** 首版普通工人客户端尝试调用 A-line 或其他未注册外部 Assist
 - **THEN** 系统拒绝请求，且不返回隐藏候选或自动修改几何
 
 ### Requirement: Assist 操作保留不可变证据

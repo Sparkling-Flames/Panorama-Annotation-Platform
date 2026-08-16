@@ -41,7 +41,7 @@ POC 提交 SHALL 只依赖服务器端 canonical、Assignment、workspace、批�
 - **THEN** 界面明确显示预览不可用，且不得因此修改点位或拒绝正式提交
 
 ### Requirement: 正式 geometry authority 必须在 POC 后单独确认
-论文级 geometry engine、Manhattan/A-line 诊断及任何由其驱动的提交门槛 MUST 等待专家工具和算法合同稳定，并通过后续明确确认的 OpenSpec amendment 与代表性 golden 验证后才能启用。正式实现仍不得从派生几何自动回写 canonical 点位；当前 change 的 POC wireframe authority 不得被静默升级。
+论文级 geometry engine、Manhattan/A-line 诊断及任何由其驱动的提交门槛不属于 V1。它们 MUST 等待专家工具和算法合同稳定，并通过未来独立 OpenSpec change 与代表性 golden 验证后才能启用；该 change 必须以当时真实合同重新定义适配和版本边界，不能把 V1 的休眠 AssistArtifact 当作既定外部 schema。正式实现仍不得从派生几何自动回写 canonical 点位；当前 change 的 POC wireframe authority 不得被静默升级。
 
 #### Scenario: 请求把 POC wireframe 作为质量门槛
 - **WHEN** 尚未发布经确认和 golden 验证的正式 geometry engine

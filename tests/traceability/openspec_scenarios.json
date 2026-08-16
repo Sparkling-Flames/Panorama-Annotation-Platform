@@ -1491,10 +1491,10 @@
         },
         {
           "requirement_id": "PAP-PAS-REQ-006",
-          "title": "首版不向普通工人开放 A-line",
+          "title": "首版不集成外部 A-line/Manhattan",
           "scenarios": [
             {
-              "title": "普通工人请求 A-line 候选",
+              "title": "普通工人请求未注册外部候选",
               "test_ids": ["PAP-PAS-SC-009"],
               "coverage_status": "implemented",
               "test_files": ["backend/tests/test_assignment_api.py"]

@@ -108,7 +108,7 @@ PortalObservation SHALL 只描述物理结构观察。是否由 portal 切分目
 - **THEN** 导出明确标记 `physical=false` 并追溯 source portal/policy，不把虚拟边混入 physical-wall 训练标签
 
 ### Requirement: 工人端精度辅助没有 canonical authority
-2D 编辑器 MAY 从当前已授权 MediaVariant 和内存 DraftState 派生点级局部放大、pair 连线、seam 标记以及被动证据或结构提示。所有辅助结果 MUST 是瞬态只读输出，不得新增、删除、吸附、拉直、批量移动、重排或补全 canonical 点。只有工人显式完成 add、delete、move、order 或 seam 操作才可改变 DraftState、`state_sha` 和 Undo/Redo；Manual 不得因辅助层预填 Prediction。点级遮挡/evidence 若未来进入 canonical，MUST 使用新的 schema_version 和新 Task，不能追写当前 Revision。
+2D 编辑器 MAY 从当前已授权 MediaVariant 和内存 DraftState 派生点级局部放大、pair 连线和 seam 标记。所有辅助结果 MUST 是瞬态只读输出，不得新增、删除、吸附、拉直、批量移动、重排或补全 canonical 点。只有工人显式完成 add、delete、move、order 或 seam 操作才可改变 DraftState、`state_sha` 和 Undo/Redo；Manual 不得因辅助层预填 Prediction。点级遮挡/evidence 若未来获批进入 canonical，MUST 经独立 OpenSpec change 使用新的 schema_version 和新 Task，不能追写当前 Revision。
 
 #### Scenario: 拖动时检查局部细节
 - **WHEN** 工人拖动某个 top 或 bottom 点并使用局部放大镜检查当前全景像素
