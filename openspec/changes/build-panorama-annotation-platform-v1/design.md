@@ -76,6 +76,8 @@ Canonical AnnotationState 只含工人直接提交的版本化元标签、有序
 
 ReviewRecord 指向特定 Revision，首版 reviewer 仅为管理员，结果只使用 `accepted | changes_requested`。复核采用追加式不可变记录；改判时新记录显式引用被替代记录。`changes_requested` 必须保存原因并把 Assignment 投影为 `queue_state=needs_revisit`，但完整 ReworkRequest、期限与反馈暴露仍由 6.9/6.10 实现。管理员修正 canonical 时创建归因于管理员、保存完整状态/哈希/来源 Revision 的 AdjudicatedRevision；TaskDeliverySelection 是 Task 级独立交付指针，只能指向某个工人 Revision 或 AdjudicatedRevision。新工人 Revision 初始为 `unreviewed`，不会静默移动已有交付指针。首版复核整份 Revision，scope/portal/geometry 分组件证据留给 10.x。管理界面的 Scope-only 快捷动作只接收裁定原因、截止时间和文字指导；服务端在一个事务内从不可变源 Revision 复制完整 canonical，只把 Scope 改为 annotatable，并拒绝客户端传入 geometry/portal，同时不得创建、替换或 supersede TaskDeliverySelection。它不提供专家几何编辑，也不绑定未来 A-line/Manhattan；需要改变 geometry 或选择正式交付的裁决仍走独立完整 Adjudication 合同。scope observation 被裁决后的返工创建 feedback-exposed 新 Revision。普通点移动命令只存在当前设备 IndexedDB，服务器保存最新 DraftSnapshot 与必要事件，不实现全量事件溯源。
 
+返工通知首版不引入推送或轮询。工人端只在在线、可写且没有活动编辑器、进行中操作或阻断表单的安全列表态，于窗口重新获得 focus 时读取当前批次 Assignment；需要反馈时复用既有本人 ReworkRequest 读取。该前台读取使用独立 AbortController，不复用会清空选择状态的显式列表重试，并与常规 Assignment 读取共享单调 generation；安全条件变化、显式重试、连续 focus 或组件卸载都会使旧读取失效，解析完成后仍须检查取消状态及 generation，避免任一路径的晚到响应覆盖新状态。
+
 Active time 首版只实现 `active-time-v1`，Task 在发布前冻结该版本。每个 ActivityEvent 同时携带用于单 session 排序的 `client_monotonic_ms` 和用于跨 session 对齐的 `client_wall_time_ms`；服务器先按 v1 把有效交互派生为最长 15 秒的区间，再按 DraftCycle 对所有 session 区间求并集。墙钟非有限、倒退或与接收时间明显异常时记录原因并保守少算，不得因此增加时间。当前实现不预建 v2；未来规则只通过新版本和新 Task 生效，旧 Task/事件始终按原版本重放。
 
 ### 5. 前端分为 2D 编辑真源与只读派生预览层

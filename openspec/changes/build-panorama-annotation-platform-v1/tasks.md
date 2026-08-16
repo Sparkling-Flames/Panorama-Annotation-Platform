@@ -73,6 +73,7 @@
 - [x] 6.9 【Red】为 needs_scope_review/representation_oos→annotatable ReworkRequest、通知与返工仅本人可读、只暴露裁定文字不暴露他人几何/portal、feedback_exposed 和 overdue 编写权限/E2E 测试。（后端真实 API、foreign/missing 不泄露、逾期、反馈归因和 worker 通知 UI 单测已完成；Chromium E2E 进一步验证窄 ReworkRequest payload、裁定 geometry/portal 不进入工人 Draft 及 feedback-exposed Revision。）
 - [x] 6.10 【Green】实现按 Assignment 归属约束的选择性返工与初始/返工证据分离，并验证普通点移动历史不持久化到服务器。（后端选择性返工、前端入口、active-time 分桶、共识排除和普通 pointer move 不持久化已完成；真实浏览器完成 `representation_oos`→管理员 annotatable 裁定→返工提交，原 Revision 保持不变。）
 - [x] 6.11 【Red/Green】补齐管理员 Scope-only 返工界面与原子领域动作：只接收裁定原因、截止时间和文字指导，拒绝客户端 geometry/portal；从不可变源 Revision 原样保留 geometry/portal 并只裁定 Scope，任一步失败整体回滚且不得创建或移动 TaskDeliverySelection。该快捷动作不实现专家几何编辑，也不绑定外部 A-line/Manhattan。（后端验证工人权限拒绝、客户端 state 注入拒绝、末步失败零部分记录、源 geometry/portal 原样保留，以及有无既有交付选择时指针均不变；前端仅展示无坐标摘要并只发送三字段 DTO。）
+- [x] 6.12 【Red/Green】为工人在安全前台 focus 后读取本人新 Scope-only ReworkRequest、常规/连续 focus 与 ReworkRequest 的取消或晚到响应，以及已保存编辑器打开时不刷新列表编写组件测试；实现无轮询/推送的 abortable owned-list refresh，不改变 Draft、Revision 或返工接受语义。（独立前台 Assignment 读取在安全条件变化、显式重试、连续 focus 或卸载时取消，并与常规 Assignment GET 共享单调 generation；Assignment/ReworkRequest 在 JSON 解析后拒绝已失效响应，只有最新复核反馈存在时才读取本人 ReworkRequest。）
 
 ## 7. 本地信息性预览与验证切片
 
