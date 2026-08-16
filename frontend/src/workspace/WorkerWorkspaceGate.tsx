@@ -7,6 +7,20 @@ type WorkspaceState =
   "acquiring" | "editable" | "error" | "local_conflict" | "lost" | "offline" | "takeover_required";
 
 const RENEW_INTERVAL_MS = 45_000;
+const CLIENT_INSTANCE_ID_KEY = "panorama.workspace.client-instance-id";
+const TAB_ID_KEY = "panorama.workspace.tab-id";
+
+function workspaceSessionId(key: string): string {
+  try {
+    const existing = window.sessionStorage.getItem(key);
+    if (existing !== null) return existing;
+    const created = crypto.randomUUID();
+    window.sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
 
 type WorkspaceRenderContext = { online: boolean; tabId: string; writable: boolean };
 
@@ -22,10 +36,10 @@ export function WorkerWorkspaceGate({
   const mounted = useRef(false);
   const renewalRequest = useRef<AbortController | null>(null);
   const renewTimer = useRef<number | undefined>(undefined);
-  const clientInstanceId = useRef(crypto.randomUUID());
+  const clientInstanceId = useRef(workspaceSessionId(CLIENT_INSTANCE_ID_KEY));
   const hasEditableWorkspace = useRef(false);
   const leaseLost = useRef(false);
-  const tabId = useRef(crypto.randomUUID());
+  const tabId = useRef(workspaceSessionId(TAB_ID_KEY));
 
   function stopRenewal(): void {
     if (renewTimer.current !== undefined) {

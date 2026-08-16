@@ -102,7 +102,7 @@ V1 只保留已实现且默认关闭的通用 AssistArtifact 状态绑定、feat
 
 前端用活动状态机把可见性、焦点、允许交互、15 秒 idle 和 30 秒 heartbeat 转成有序 ActivityEvent。客户端单调时钟用于测量间隔，服务器接收时间用于排序与异常判断；服务器按 active lease、session、sequence 和 event_id 去重、封顶和派生。
 
-ActivityEvent 不保存 pointer 坐标或键盘内容。多标签页由浏览器协调加服务器 `active_workspace_token/active_lease` 双重限制。时间首先归属于 Assignment + DraftCycle，再派生 initial/revision/rework/unsubmitted 指标。付款保持平台外按图片结算。
+ActivityEvent 不保存 pointer 坐标或键盘内容。多标签页由浏览器协调加服务器 `active_workspace_token/active_lease` 双重限制；当前标签页只在 `sessionStorage` 保存不具授权能力的 `client_instance_id` 与 `tab_id` 以支持刷新后重取同一租约，认证令牌继续只存在安全服务端会话。时间首先归属于 Assignment + DraftCycle，再派生 initial/revision/rework/unsubmitted 指标。付款保持平台外按图片结算。
 
 ### 8. 离线采用 IndexedDB patch queue，不做离线正式提交
 

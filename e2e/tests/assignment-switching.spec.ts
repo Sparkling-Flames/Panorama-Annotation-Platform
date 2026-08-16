@@ -9,6 +9,7 @@ const WORKER_PASSWORD = process.env.PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD;
 const WORKER_ID = "00000000-0000-4000-8000-000000000007";
 const REVISION_WORKER_ID = "00000000-0000-4000-8000-000000000009";
 const OFFLINE_WORKER_ID = "00000000-0000-4000-8000-000000000010";
+const REWORK_WORKER_ID = "00000000-0000-4000-8000-000000000012";
 
 async function createAnnotationRound(page: Page): Promise<string> {
   const preview = await postJson(page, "/api/admin/media/imports/preview", {
@@ -250,6 +251,227 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
       state: { pairs: [{ top: { u: 0.25 } }] },
     });
     expect(activityStatuses.filter((status) => status >= 500)).toEqual([]);
+  } finally {
+    await Promise.all([adminContext.close(), workerContext.close()]);
+  }
+});
+
+test("PAP-IAM-SC-012 PAP-DRR-SC-010 PAP-DRR-SC-011 PAP-DRR-SC-013 completes private scope rework", async ({
+  browser,
+}) => {
+  if (ADMIN_PASSWORD === undefined || WORKER_PASSWORD === undefined) {
+    throw new Error("Missing scope rework E2E credentials");
+  }
+  const adminContext = await browser.newContext();
+  const workerContext = await browser.newContext();
+  try {
+    const adminPage = await adminContext.newPage();
+    await login(adminPage, "e2e-admin", ADMIN_PASSWORD);
+    const taskId = await createAnnotationRound(adminPage);
+    const batch = await postJson(adminPage, "/api/admin/work-batches", {
+      name: "E2E scope rework batch",
+    });
+    expect(batch.status).toBe(201);
+    const assignment = await postJson(
+      adminPage,
+      `/api/admin/work-batches/${(batch.body as { batch_id: string }).batch_id}/assignments`,
+      { task_id: taskId, worker_id: REWORK_WORKER_ID },
+    );
+    expect(assignment.status).toBe(201);
+    const assignmentId = (assignment.body as { assignment_id: string }).assignment_id;
+
+    const workerPage = await workerContext.newPage();
+    await login(workerPage, "e2e-rework-worker", WORKER_PASSWORD);
+    await workerPage.reload();
+    await expect(workerPage.getByText("工作区可编辑。")).toBeVisible();
+    await workerPage.getByRole("button", { name: `打开 ${taskId}` }).click();
+    await workerPage.getByLabel("Scope / 范围判断").selectOption("representation_oos");
+    await workerPage.getByLabel("证据不足").check();
+    await workerPage.getByLabel("Geometry attempt / 几何完成度").selectOption("partial");
+    await workerPage.getByLabel("非常简单").check();
+
+    await workerPage.getByRole("button", { name: "添加角点对" }).click();
+    const canvas = workerPage.getByLabel("全景规范化坐标编辑区");
+    await canvas.click({ position: { x: 160, y: 80 } });
+    await canvas.click({ position: { x: 190, y: 320 } });
+    await workerPage.getByRole("button", { name: "添加 Portal" }).click();
+    await workerPage.getByLabel("Portal 类型").selectOption("door");
+    await workerPage.getByLabel("Portal 证据状态").selectOption("direct_visible");
+    for (const [label, value] of [
+      ["Portal 左上 u", "0.2"],
+      ["Portal 左上 v", "0.2"],
+      ["Portal 右上 u", "0.3"],
+      ["Portal 右上 v", "0.2"],
+      ["Portal 左下 u", "0.2"],
+      ["Portal 左下 v", "0.8"],
+      ["Portal 右下 u", "0.3"],
+      ["Portal 右下 v", "0.8"],
+    ] as const) {
+      await workerPage.getByLabel(label).fill(value);
+    }
+    await workerPage.getByLabel("Portal host edge").selectOption({ index: 1 });
+    const sourceSave = workerPage.waitForResponse(
+      (response) => response.url().endsWith("/draft") && response.request().method() === "PUT",
+    );
+    await workerPage.getByRole("button", { name: "保存 Portal" }).click();
+    expect((await sourceSave).status()).toBe(200);
+
+    const sourceSubmit = workerPage.waitForResponse(
+      (response) => response.url().endsWith("/submit") && response.request().method() === "POST",
+    );
+    await workerPage.getByRole("button", { name: "提交 Revision" }).click();
+    const sourceSubmission = await sourceSubmit;
+    expect(sourceSubmission.status()).toBe(201);
+    const sourceRevisionId = ((await sourceSubmission.json()) as { revision_id: string })
+      .revision_id;
+    const sourceRevision = await adminPage.evaluate(async (revisionId) => {
+      const response = await fetch(`/api/admin/revisions/${revisionId}`, {
+        credentials: "same-origin",
+      });
+      return { body: await response.json(), status: response.status };
+    }, sourceRevisionId);
+    expect(sourceRevision.status).toBe(200);
+    const sourcePayload = sourceRevision.body as {
+      feedback_exposed: boolean;
+      revision_no: number;
+      state: {
+        geometry_attempt_status: string;
+        pairs: Array<
+          {
+            bottom: { u: number } & Record<string, unknown>;
+            top: { u: number } & Record<string, unknown>;
+          } & Record<string, unknown>
+        >;
+        portals: Array<{ kind: string } & Record<string, unknown>>;
+        scope_reason_codes: string[];
+        worker_scope_observation: string;
+      } & Record<string, unknown>;
+    };
+    expect(sourcePayload).toMatchObject({
+      feedback_exposed: false,
+      revision_no: 1,
+      state: {
+        portals: [{ kind: "door" }],
+        worker_scope_observation: "representation_oos",
+      },
+    });
+    const sourceTopU = sourcePayload.state.pairs[0].top.u;
+
+    const reviewed = await postJson(adminPage, `/api/admin/revisions/${sourceRevisionId}/review`, {
+      outcome: "changes_requested",
+      reason: "The final scope is annotatable.",
+    });
+    expect(reviewed.status).toBe(201);
+    const adjudicatedState = structuredClone(sourcePayload.state);
+    adjudicatedState.worker_scope_observation = "annotatable";
+    adjudicatedState.scope_reason_codes = [];
+    adjudicatedState.geometry_attempt_status = "best_effort_complete";
+    adjudicatedState.pairs[0].top.u = 0.71;
+    adjudicatedState.pairs[0].bottom.u = 0.72;
+    adjudicatedState.portals[0].kind = "window";
+    const adjudicated = await postJson(adminPage, `/api/admin/tasks/${taskId}/adjudications`, {
+      reason: "Resolve the representation and geometry conflict as annotatable.",
+      source_revision_ids: [sourceRevisionId],
+      state: adjudicatedState,
+    });
+    expect(adjudicated.status).toBe(201);
+    const instruction = "Scope is annotatable. Rework from your own observations.";
+    const rework = await postJson(
+      adminPage,
+      `/api/admin/revisions/${sourceRevisionId}/rework-request`,
+      {
+        adjudication_id: (adjudicated.body as { adjudication_id: string }).adjudication_id,
+        due_at: new Date(Date.now() + 86_400_000).toISOString(),
+        instruction,
+      },
+    );
+    expect(rework.status).toBe(201);
+    expect(Object.keys(rework.body as object).sort()).toEqual([
+      "assignment_id",
+      "due_at",
+      "instruction",
+      "request_id",
+      "status",
+    ]);
+    expect(rework.body).toMatchObject({
+      assignment_id: assignmentId,
+      instruction,
+      status: "pending",
+    });
+
+    await workerPage.reload();
+    await expect(
+      workerPage.getByRole("heading", { name: "返工通知 / Rework notifications" }),
+    ).toBeVisible();
+    await expect(workerPage.getByText(instruction)).toBeVisible();
+    await expect(workerPage.getByText("Portal 1: window / direct_visible")).toHaveCount(0);
+    const acceptRework = workerPage.waitForResponse(
+      (response) =>
+        response.url().includes("/api/worker/rework-requests/") &&
+        response.url().endsWith("/accept") &&
+        response.request().method() === "POST",
+    );
+    await workerPage.getByRole("button", { name: "开始返工 / Start rework" }).click();
+    expect((await acceptRework).status()).toBe(201);
+    const topU = workerPage.getByLabel("第 1 对顶点水平坐标");
+    await expect(topU).toHaveValue(String(sourceTopU));
+    await expect(topU).not.toHaveValue("0.71");
+    await expect(workerPage.getByText("Portal 1: door / direct_visible")).toBeVisible();
+
+    const reworkSave = workerPage.waitForResponse(
+      (response) => response.url().endsWith("/draft") && response.request().method() === "PUT",
+    );
+    await workerPage.getByLabel("Scope / 范围判断").selectOption("annotatable");
+    await workerPage
+      .getByLabel("Geometry attempt / 几何完成度")
+      .selectOption("best_effort_complete");
+    await topU.fill("0.31");
+    expect((await reworkSave).status()).toBe(200);
+    const feedbackSubmit = workerPage.waitForResponse(
+      (response) => response.url().endsWith("/submit") && response.request().method() === "POST",
+    );
+    await workerPage.getByRole("button", { name: "提交 Revision" }).click();
+    const feedbackSubmission = await feedbackSubmit;
+    expect(feedbackSubmission.status()).toBe(201);
+    const feedbackRevisionId = ((await feedbackSubmission.json()) as { revision_id: string })
+      .revision_id;
+    const feedbackRevision = await adminPage.evaluate(async (revisionId) => {
+      const response = await fetch(`/api/admin/revisions/${revisionId}`, {
+        credentials: "same-origin",
+      });
+      return { body: await response.json(), status: response.status };
+    }, feedbackRevisionId);
+    expect(feedbackRevision).toMatchObject({
+      status: 200,
+      body: {
+        feedback_exposed: true,
+        revision_no: 2,
+        state: {
+          pairs: [{ top: { u: 0.31 } }],
+          portals: [{ kind: "door" }],
+          scope_reason_codes: [],
+          worker_scope_observation: "annotatable",
+        },
+      },
+    });
+    const unchangedSource = await adminPage.evaluate(async (revisionId) => {
+      const response = await fetch(`/api/admin/revisions/${revisionId}`, {
+        credentials: "same-origin",
+      });
+      return { body: await response.json(), status: response.status };
+    }, sourceRevisionId);
+    expect(unchangedSource).toMatchObject({
+      status: 200,
+      body: {
+        feedback_exposed: false,
+        revision_no: 1,
+        state: {
+          pairs: [{ top: { u: sourceTopU } }],
+          portals: [{ kind: "door" }],
+          worker_scope_observation: "representation_oos",
+        },
+      },
+    });
   } finally {
     await Promise.all([adminContext.close(), workerContext.close()]);
   }

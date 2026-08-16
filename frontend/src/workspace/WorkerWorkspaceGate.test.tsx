@@ -50,6 +50,7 @@ describe("WorkerWorkspaceGate", () => {
 
   afterEach(() => {
     cleanup();
+    sessionStorage.clear();
     document.cookie = "csrftoken=; Max-Age=0; Path=/";
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -86,6 +87,43 @@ describe("WorkerWorkspaceGate", () => {
     );
     view.unmount();
     await waitFor(() => expect(lockManager.isLocked()).toBe(false));
+  });
+
+  it("PAP-IAM-SC-012 reuses its non-secret workspace identity when the same tab reloads", async () => {
+    const lockManager = new FakeWorkspaceLockManager();
+    vi.stubGlobal("navigator", { locks: lockManager });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          { lease_expires_at: "2026-07-30T12:00:00Z", workspace_state: "editable" },
+          201,
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const firstView = render(<WorkerWorkspaceGate />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const firstIdentity = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)) as {
+      client_instance_id: string;
+      tab_id: string;
+    };
+    firstView.unmount();
+    await waitFor(() => expect(lockManager.isLocked()).toBe(false));
+
+    render(<WorkerWorkspaceGate />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const secondIdentity = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body)) as {
+      client_instance_id: string;
+      tab_id: string;
+    };
+
+    expect(secondIdentity).toEqual(firstIdentity);
+    expect(Object.keys(sessionStorage).sort()).toEqual([
+      "panorama.workspace.client-instance-id",
+      "panorama.workspace.tab-id",
+    ]);
+    expect(localStorage).toHaveLength(0);
   });
 
   it("waits locally, then retries after the first browser tab releases its lock", async () => {

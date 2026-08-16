@@ -15,7 +15,7 @@
 - [x] 2.3 【Red·策略原语】为对象访问的共同安全语义编写单元测试，覆盖 owner 允许、foreign 与 missing 返回一致的不泄露响应，以及管理员敏感读取审计；本项不作为真实 Assignment、Revision 或媒体端点的场景证据。
 - [x] 2.4 【Green·策略原语】实现 2.3 的最小共同响应与审计语义；真实资源必须按领域关系执行查询范围约束，不为复用原语而伪造统一 owner 字段，端点集成在对应后续切片验收。
 - [x] 2.5 【Red·控制面】为单 active_workspace_token、显式接管令牌轮换、旧令牌续租失败、同浏览器不同 tab 冲突、租约过期重取及管理员例外编写并发测试；本项不把续租请求称为业务写入。
-- [x] 2.6 【Green·控制面】实现工作区 acquire/renew、接管、租约及客户端多页/断网状态，使 2.5 通过；Draft、Revision、Activity 等真实写入及 recovery copy 在对应后续切片验收。
+- [x] 2.6 【Green·控制面】实现工作区 acquire/renew、接管、租约及客户端多页/断网状态，使 2.5 通过；Draft、Revision、Activity 等真实写入及 recovery copy 在对应后续切片验收。（同一标签页刷新复用仅限当前 tab 的非密钥实例标识，真实 Rework E2E 已证明不会被误判为第二标签页；认证 token 仍不进入客户端存储。）
 - [x] 2.7 验证 token 不进入 localStorage、账号禁用/改密撤销旧会话、工人接口不返回画像排名；证据为浏览器安全 E2E 与响应 schema 测试。
 
 ## 3. Asset、MediaVariant 与 COS 导入交付切片
@@ -70,8 +70,8 @@
 - [x] 6.6 【Green·POC】实现修订入口、最新 Revision 复制与周期归因，运行 Draft/Revision 回归；ReviewRecord、changes_requested 与裁决仍留在 6.7/6.8。
 - [x] 6.7 【Red】为管理员专用且追加式不可变的 ReviewRecord、`accepted | changes_requested`、改判 supersedes、新工人 Revision unreviewed、Task 级互斥交付指针、管理员 AdjudicatedRevision 不冒充工人，以及管理员真实敏感读取审计编写测试；完整 ReworkRequest 留在 6.9/6.10。
 - [x] 6.8 【Green】实现管理员整份 Revision 复核、裁决与 TaskDeliverySelection；`changes_requested` 只投影 `needs_revisit` 并保留 submitted，裁决保存完整 canonical/哈希/来源 Revision，新提交不自动移动既有交付指针。
-- [ ] 6.9 【Red】为 needs_scope_review/representation_oos→annotatable ReworkRequest、通知与返工仅本人可读、只暴露裁定文字不暴露他人几何/portal、feedback_exposed 和 overdue 编写权限/E2E 测试。（后端真实 API/权限/逾期/反馈归因和 worker 通知 UI 单测已完成；Playwright 由对应 E2E 切片补齐。）
-- [ ] 6.10 【Green】实现按 Assignment 归属约束的选择性返工与初始/返工证据分离，并验证普通点移动历史不持久化到服务器。（后端选择性返工、前端入口和共识排除已完成；完整 E2E 尚未完成。）
+- [x] 6.9 【Red】为 needs_scope_review/representation_oos→annotatable ReworkRequest、通知与返工仅本人可读、只暴露裁定文字不暴露他人几何/portal、feedback_exposed 和 overdue 编写权限/E2E 测试。（后端真实 API、foreign/missing 不泄露、逾期、反馈归因和 worker 通知 UI 单测已完成；Chromium E2E 进一步验证窄 ReworkRequest payload、裁定 geometry/portal 不进入工人 Draft 及 feedback-exposed Revision。）
+- [x] 6.10 【Green】实现按 Assignment 归属约束的选择性返工与初始/返工证据分离，并验证普通点移动历史不持久化到服务器。（后端选择性返工、前端入口、active-time 分桶、共识排除和普通 pointer move 不持久化已完成；真实浏览器完成 `representation_oos`→管理员 annotatable 裁定→返工提交，原 Revision 保持不变。）
 
 ## 7. 本地信息性预览与验证切片
 
@@ -172,7 +172,7 @@
 - [ ] 14.2 建立 Semi E2E：管理员导入本地 prediction→冻结 Task→工人读取→Manual 反泄漏验证→提交与共识。
 - [ ] 14.3 建立离线/冲突 E2E：断网编辑与计时→恢复同步；另一设备接管时保留 recovery copy 且不覆盖。
 - [ ] 14.4 建立动态质量 E2E：新工人→Trap PreScreen→common-anchor Calibration→production→scope/portal/geometry component aggregation→LOO 回算 provisional/verified profile→progression probe→能力—难度建议→管理员批准→后续画像更新不追溯改派。
-- [ ] 14.5 建立 Scope 返工 E2E：representation/geometry 冲突→管理员裁定 annotatable→不暴露他人几何/portal 的 ReworkRequest→feedback-exposed Revision。
+- [x] 14.5 建立 Scope 返工 E2E：representation/geometry 冲突→管理员裁定 annotatable→不暴露他人几何/portal 的 ReworkRequest→feedback-exposed Revision。（Chromium 使用真实 Assignment、`representation_oos` Revision、Review、AdjudicatedRevision 与 ReworkRequest；管理员裁定中的不同 point/window 不进入工人端，返工从工人自己的 point/door 开始，新 Revision 为 `feedback_exposed=true`，原 Revision 不变。）
 - [ ] 14.6 在真实 Assignment、Revision 和媒体端点运行对象级权限矩阵，并运行 CSRF/session、签名 URL、并发提交、Job 幂等、日志泄露和备份恢复安全回归；不得以 FakeOwnedResource 或控制面续租请求替代业务路径证据。
 - [ ] 14.7 运行全部后端、前端、E2E、当前已发布 canonical/预览能力的 golden、OpenSpec strict validation 和依赖/许可证检查，保存版本化验收报告；不得以未获批的外部 geometry/A-line 能力阻塞 V1。
 - [ ] 14.8 仅在用户验收通过后同步 `openspec/specs` 并 archive change；未通过项保持未勾选，不得以削弱测试或删除断言宣称完成。

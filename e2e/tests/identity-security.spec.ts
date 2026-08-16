@@ -45,6 +45,16 @@ async function storageContents(page: Page) {
   }));
 }
 
+function expectOnlyWorkspaceIdentityStored(contents: Awaited<ReturnType<typeof storageContents>>) {
+  expect(contents).toEqual({
+    localStorage: {},
+    sessionStorage: {
+      "panorama.workspace.client-instance-id": expect.stringMatching(/^[0-9a-f-]{36}$/),
+      "panorama.workspace.tab-id": expect.stringMatching(/^[0-9a-f-]{36}$/),
+    },
+  });
+}
+
 async function openBackendPage(context: BrowserContext): Promise<Page> {
   const page = await context.newPage();
   const response = await page.goto(`${BACKEND_URL}/api/auth/csrf`);
@@ -178,7 +188,7 @@ test("PAP-IAM-SC-003 requires the temporary password to be changed before worksp
       (cookie) => cookie.name === "sessionid",
     );
     expect(sessionCookie).toMatchObject({ httpOnly: true });
-    expect(await storageContents(workerPage)).toEqual({ localStorage: {}, sessionStorage: {} });
+    expectOnlyWorkspaceIdentityStored(await storageContents(workerPage));
   } finally {
     await Promise.all([administratorContext.close(), workerContext.close()]);
   }
@@ -305,7 +315,7 @@ test("PAP-IAM-REQ-003 rejects unauthenticated and worker access to the admin med
       body: { error: { code: "admin_required" } },
       status: 403,
     });
-    expect(await storageContents(workerPage)).toEqual({ localStorage: {}, sessionStorage: {} });
+    expectOnlyWorkspaceIdentityStored(await storageContents(workerPage));
   } finally {
     await Promise.all([anonymousContext.close(), workerContext.close()]);
   }
