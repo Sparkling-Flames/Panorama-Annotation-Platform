@@ -145,7 +145,7 @@
 - [x] 12.2 【Green】实现管理员运营页，不自动生成 tier、处罚或路由变更。
 - [x] 12.3 【Red】为“计算当前情况”的 cutoff、仅 Revision、input manifest/hash、版本/support/missing/not-evaluable、相同输入复用和旧快照不变编写 Job 测试。
 - [x] 12.4 【Green】实现 MetricSnapshot 后台作业与管理员状态/结果 UI。
-- [ ] 12.5 【Red/Green】实现 unresolved、多峰、scope 与有效 portal/geometry 冲突、模板化 reason、画像漂移与随机抽检复核队列；满足冻结 ScopePolicy 且未命中抽检的 Task 不要求逐张审核。（已实现由真实 `TaskAggregate`、`requires_review` AuditArtifact 和 OperationalIssue 驱动的复核队列、管理员读取/按 reason code 筛选、输入 Revision/冲突摘要/冻结规则版本；反复模板化 reason、画像漂移与随机抽检仍未实现。）
+- [ ] 12.5 【Red/Green】实现 unresolved、多峰、scope 与有效 portal/geometry 冲突、模板化 reason、画像漂移与随机抽检复核队列；满足冻结 ScopePolicy 且未命中抽检的 Task 不要求逐张审核。（已实现由真实 `TaskAggregate`、`requires_review` AuditArtifact 和 OperationalIssue 驱动的复核队列、管理员读取/按 reason code 筛选、输入 Revision/冲突摘要/冻结规则版本；真实 OperationalIssue 进入管理员复核队列的 Playwright 路径已通过；反复模板化 reason、画像漂移与随机抽检仍未实现。）
 - [x] 12.6 【Red/Green】实现最小 GuidanceEvent 和确认/feedback exposure，仅目标工人可查询并确认；未确认投递不得计作 feedback exposure，不提供工人回复、对话线程，也不集成微信/Upwork 聊天内容或支付。
 - [x] 12.7 【Red】为注册 AuditRun、冻结 hash 输入、不可变 Artifact、审计不能修改 Revision 编写权限和副作用测试。
 - [x] 12.8 【Green】实现注册审计框架及 canonical 结构、scope-portal、时间完整性审计类型；拒绝任意脚本。外部 Manhattan/结构审计不属于 V1，只能由未来独立 change 注册，不以占位算法冒充。
@@ -164,7 +164,7 @@
 - [ ] 13.7 验证全球测试节点的压缩/高清首字节、失败和回退指标可按匿名化地区聚合；CDN 仍不在首版依赖中。
 - [x] 13.8 添加仓库隔离测试，确保构建、测试、部署和运行不读取 `D:\Work\HOHONET` 或 Label Studio 数据库。（CI 扫描当前及未来执行面、构建/依赖清单和软链接目标；真实生产部署验收仍由 13.5/14.7 完成。）
 - [x] 13.9 【Red/Green】把 Supabase 定位为仅托管 PostgreSQL：固定 21 个触发器函数的 `search_path`，撤销 `PUBLIC`/`anon`/`authenticated`/`service_role` 对 Django `public` 对象及当前 owner 默认对象的权限，并在临时 PostgreSQL 17 中用同名角色验证迁移、回滚往返和有效权限均安全。（云端 PostgreSQL 17 已通过函数配置、有效权限、默认权限及 0028→0001→0028 往返专测。）
-- [ ] 13.10 在生产 Supabase Dashboard 禁用 Data API 或从 exposed schema 移除 `public`，经 Django release migration 部署 13.9 后只读复核对象权限和 security advisor；不得用 Supabase migration history 形成第二套 DDL authority。（2026-08-13 已用一次性 break-glass migration 将生产有效表/序列/函数权限和危险默认授权降为 0、固定 21 个函数且 advisor 清零；2026-08-16 已在 Dashboard 确认 Data API disabled。仍待合并部署后由 Django `work.0028` 正式登记并完成部署后只读复核。）
+- [x] 13.10 在生产 Supabase Dashboard 禁用 Data API 或从 exposed schema 移除 `public`，经 Django release migration 部署 13.9 后只读复核对象权限和 security advisor；不得用 Supabase migration history 形成第二套 DDL authority。（2026-08-16 已确认 Data API disabled，并由 Django 正式登记 `work.0028`：迁移总数 57、0028 恰好 1 条。部署后 `anon`/`authenticated`/`service_role` 的表/序列/函数有效权限均为 0，21 个函数 mutable search_path 与 security definer 均为 0，`public` schema CREATE 均关闭，Security Advisor 零告警；全部 Django public 对象和连接 owner 为 `postgres`，其危险默认授权为 0。）
 
 ## 14. 端到端验收与上线门槛
 
