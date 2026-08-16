@@ -21,7 +21,7 @@ def create_trigger(_apps: Any, schema_editor: Any) -> None:
                 END IF;
                 RETURN NEW;
             END;
-            $$ LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
 
             CREATE TRIGGER work_assignment_identity_immutable
             BEFORE UPDATE ON work_assignment
@@ -45,9 +45,13 @@ def create_trigger(_apps: Any, schema_editor: Any) -> None:
 
 
 def drop_trigger(_apps: Any, schema_editor: Any) -> None:
-    schema_editor.execute("DROP TRIGGER IF EXISTS work_assignment_identity_immutable")
     if schema_editor.connection.vendor == "postgresql":
+        schema_editor.execute(
+            "DROP TRIGGER IF EXISTS work_assignment_identity_immutable ON work_assignment"
+        )
         schema_editor.execute("DROP FUNCTION IF EXISTS work_reject_assignment_identity_mutation()")
+    elif schema_editor.connection.vendor == "sqlite":
+        schema_editor.execute("DROP TRIGGER IF EXISTS work_assignment_identity_immutable")
 
 
 class Migration(migrations.Migration):

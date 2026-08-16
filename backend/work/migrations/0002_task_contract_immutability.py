@@ -122,7 +122,7 @@ POSTGRES_CREATE = (
         END IF;
         RETURN NEW;
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER work_task_contract_immutable
@@ -152,7 +152,7 @@ POSTGRES_CREATE = (
         END IF;
         RETURN NEW;
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER work_task_media_immutable

@@ -13,7 +13,7 @@ POSTGRES_CREATE = (
     BEGIN
         RAISE EXCEPTION 'Task consensus artifacts are immutable.' USING ERRCODE = '23000';
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER work_consensus_artifact_immutable

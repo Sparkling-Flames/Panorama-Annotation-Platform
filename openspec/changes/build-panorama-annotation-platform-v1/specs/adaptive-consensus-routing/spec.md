@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 每次提交触发近实时评估
-每个新 AnnotationRevision SHALL 异步触发一个版本化 SubmissionAssessment，立即计算当前已注册规则可用的 canonical 结构、scope/portal/geometry evidence、过程完整性和共识增量。Manhattan 或正式 geometry 结论只有在对应 authority 经 7.7 确认并注册后才能加入 Assessment；POC 不得用占位算法伪造。Revision 的提交成功不得依赖分析任务同步完成；失败的分析 MUST 可幂等重试并使任务显示 `verification_pending`。
+每个新 AnnotationRevision SHALL 异步触发一个版本化 SubmissionAssessment，立即计算当前已注册规则可用的 canonical 结构、scope/portal/geometry evidence、过程完整性和共识增量。外部 Manhattan 或正式 geometry 结论不属于 V1；只有未来独立 OpenSpec change 明确批准对应 authority、输入输出合同和注册方式后才能加入 Assessment，且不得用占位算法伪造。Revision 的提交成功不得依赖分析任务同步完成；失败的分析 MUST 可幂等重试并使任务显示 `verification_pending`。
 
 #### Scenario: 分析服务暂时失败
 - **WHEN** Revision 已经原子提交但增量分析任务失败

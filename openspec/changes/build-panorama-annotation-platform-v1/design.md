@@ -14,6 +14,7 @@
 - 先贯通 Manual Assignment、真实媒体、2D/Scope/Portal、autosave、信息性 wireframe、不可变 Revision 与管理员读取的在线 POC。
 - 保证 worker/task/assignment/revision/media/prediction 的稳定身份、不可变历史和版本解释能力。
 - 在工人设备本地提供动作完成后刷新、只读且绑定当前 Draft `state_sha` 的信息性 wireframe。
+- 在 2D 真源上提供瞬态点级放大和明确 pair 关联，使工人看清边界但不引入自动吸附或隐式几何写回。
 - 用服务端事件区间推导 active time，支持离线编辑和离线计时恢复。
 - 用动态追加、scope/portal/geometry/evidence 组件级聚合和 LOO 证据减少逐图人工审计，并滚动更新 provisional 工人画像。
 - POC 后再用 Trap PreScreen、CalibrationCampaign、anchor/bridge/probe、LOO 与裁决建立可追溯的 verified/provisional/proxy 工人证据，并把校准与 task-level 聚合分开。
@@ -25,7 +26,7 @@
 - 不迁移、不修改也不替代当前论文实验运行时。
 - 不构建通用标注模板平台，不兼容 Label Studio 任意 `result[]` 类型。
 - 不实现公共注册、企业组织树、工资支付、聊天、24x7 运维或跨区域热备。
-- 不在首版实现 CAD、桌面客户端、工人本地媒体包、worker-facing A-line、云端在线推理、adaptive_auto、DatasetRelease/ModelRelease UI。
+- 不在首版实现 CAD、桌面客户端、工人本地媒体包、外部 A-line/Manhattan 集成或其产物合同、自动 snapping/拉直/拓扑修改、云端在线推理、adaptive_auto、DatasetRelease/ModelRelease UI。
 - 不在首版实现 BIM、多房间 floor-plan reconstruction 或把 portal 自动等同于 cell cut。
 - 不把多人共识宣称为绝对真值；异常、多峰和抽检仍进入管理员复核。
 
@@ -35,7 +36,7 @@
 
 平台采用一个后端代码库、一个浏览器前端和一个 PostgreSQL 主数据库。后端按领域模块分隔：identity、media、work、annotation、activity、prediction、consensus、routing、review、analytics、audit。模块通过显式服务接口和数据库事务协作，不通过共享可变 JSON 或跨服务消息拼接业务状态。
 
-推荐实现栈为 Python/Django 类事务型 Web 后端、TypeScript/React 类 SPA、PostgreSQL 和腾讯云 COS。POC wireframe 使用现有浏览器/SVG 能力；WebGL/Three.js 类渲染层只在 7.7 的正式 geometry authority 获确认后评估。实施时选择受维护版本并锁定依赖，技术栈变化不能改变 capability specs。
+已批准的实现栈固定为 Django 事务型 Web 后端、TypeScript/React SPA、PostgreSQL、腾讯云 COS、常驻 Web 进程和独立常驻 worker，按一个模块化单体代码库部署。POC wireframe 与点级放大镜使用现有浏览器/SVG 能力；WebGL/Three.js 类渲染层只在未来独立 change 确认正式 geometry authority 后评估。实施时锁定受维护版本，技术栈变化不能改变 capability specs。
 
 选择理由：几十名工人的并发不值得承担微服务、消息中间件和分布式事务成本；账户权限、Revision 冻结、幂等提交和 Assignment 状态更适合单数据库事务。与“只买 COS”相比，平台仍需要计算和关系数据库承担协调；但媒体直连 COS 后，应用服务器主要承载小体积 API 流量。
 
@@ -81,19 +82,21 @@ Active time 首版只实现 `active-time-v1`，Task 在发布前冻结该版本�
 
 2D 编辑器负责点对、顺序、seam、Scope/Portal、元标签和本地 Undo/Redo。POC 以无新增依赖的 `poc-wireframe-v1` 在离散动作完成并防抖后读取不可变 DraftState 副本，返回带 `state_sha`、`engine_version` 和 `authority=informational` 的 PreviewResult；新状态使旧结果失效，普通 pointer move 不触发重建。预览始终只读，不得回写 canonical。
 
+点级放大镜、pair 连线和 seam 标记属于平台本地只读辅助层。它们只能读取当前已授权 MediaVariant 与内存 DraftState，瞬态裁剪和 pointer preview 不持久化；只有工人明确完成 add/delete/move/order/seam 操作时，2D 真源才产生一个可撤销状态变更。取消拖动或关闭辅助必须保持 `state_sha` 不变。辅助层不得执行 snapping、自动竖直化、Manhattan 对齐、多点联动或 topology completion。
+
 POC 提交门槛只包含：
 
 1. canonical/schema 硬校验；
 2. 与 attempt 状态相适用的字段、有限性、ID 和引用校验；
 3. Assignment、workspace、批次、并发和幂等事务校验。
 
-正式论文级 geometry engine、Manhattan/A-line 诊断和提交硬门槛等专家工具与算法合同稳定后再实施，并须通过代表性 golden 验证。只有后续明确确认的 OpenSpec amendment 可以把其 authority 从 informational 升级；不得把 POC wireframe 冒充质量验证。
+正式论文级 geometry engine、Manhattan/A-line 诊断和提交硬门槛不属于 V1。只有外部工具合同稳定、独立 OpenSpec change 获批并通过代表性 golden 验证后，才可新增对应能力或升级 authority；不得把 POC wireframe 冒充质量验证。
 
 ### 6. Manual 与 Semi 使用服务端显示合同隔离
 
 Task mode 决定 display policy，而不是管理员选择相似前端模板。Manual 序列化器、查询和缓存键从类型层面排除 Prediction payload；Semi 在发布时必须绑定冻结 PredictionArtifact。Prediction 由管理员从本地推理输出导入、校验和预览，运行时不调用模型。
 
-未来 A-line 使用独立注册 Assist engine 和 AssistArtifact，不嵌进 Revision 模型。V1 可实现合同、feature flag 和审计事件，但普通工人入口关闭。任何复用 Label Studio 开源实现前必须逐文件核验许可证、保留必要声明，并用平台领域接口包裹；不得复制其通用数据模型作为 canonical schema。
+V1 只保留已实现且默认关闭的通用 AssistArtifact 状态绑定、feature gate 和审计语义；它不是 A-line 适配器，也不承诺任何外部引擎可直接映射。外部 A-line/Manhattan 的类型不得进入 Revision、canonical schema 或核心领域服务。待外部合同稳定后，独立 OpenSpec change 必须重新决定是否通过平台边界适配器映射、版本化扩展或替换该休眠合同；任何外部结果默认只能形成独立 Artifact，不能回写 Revision。V1 不创建适配器、专家输出模型或占位字段。任何复用 Label Studio 开源实现前必须逐文件核验许可证、保留必要声明，并用平台领域接口包裹；不得复制其通用数据模型作为 canonical schema。
 
 ### 7. Active time 使用租约事件而非客户端累计秒数
 
@@ -163,6 +166,8 @@ AuditRun 只允许注册类型，读取冻结 hash，输出不可变 Artifact，
 
 后端统一执行对象级权限；密码不可回读；签名 URL 最小对象范围和短 TTL；日志不输出密码、令牌、签名参数、完整 scope `other` 私密文本或媒体内容。生产日志使用 request/job/event 关联 ID，记录 API 错误率、保存冲突、签名失败、Job 延迟、事件积压、3D 客户端错误和 COS 性能。
 
+Supabase 仅作为 Django 直连的托管 PostgreSQL，不是浏览器数据访问层。生产项目关闭 Data API 或从 exposed schema 移除 `public`；`anon`、`authenticated`、`service_role` 和 `PUBLIC` 不持有 Django 业务表、序列或函数权限，迁移 owner 的 default privileges 同步收紧。所有 PL/pgSQL 触发器函数固定 `search_path=pg_catalog, public`，且 `public` schema 不允许非 owner 创建对象。Django migration graph 是唯一 DDL authority；若未来启用 Supabase Data API，必须用独立 schema、最小 GRANT、RLS 和对象级越权 E2E 另行验收，不在现有 `public` schema 上临时放权。
+
 `data-notice-v1` 由服务端固定中英文 copy 和五类最小收集范围；工人必须保存当前版本的幂等确认后才能取得或写入工作区，版本变化后重新确认。确认请求不接收 IP 或设备字段；IP/必要设备安全数据只进入独立短期安全日志且不进质量画像。高影响管理员操作进入不可变 AuditEvent。
 
 ## 已确认决策覆盖矩阵
@@ -173,7 +178,7 @@ AuditRun 只允许注册类型，读取冻结 hash，输出不可变 Artifact，
 | 浏览器首版，Chrome/Edge；桌面端未来 WebView/单实例 | `platform-boundaries`、`identity-access` | 5、8、14 |
 | 工人只编辑 2D/元标签，保存 point pair、portal、scope observation、顺序和 seam | `annotation-contract` | 3、5 |
 | POC wireframe 本地只读、动作结束后刷新、绑定当前 hash，但不参与提交门槛 | `preview-validation` | 3、5 |
-| 正式 geometry/Manhattan authority 等专家合同稳定后再经 amendment 与 golden 验收 | `preview-validation`、`prediction-assist` | 5、6 |
+| 外部 geometry/Manhattan authority 不属于 V1；合同稳定后须经独立 change 与 golden 验收 | `preview-validation`、`prediction-assist` | 5、6 |
 | img_v 优先、高清切换、规范化坐标、COS 直连无 CDN | `media-ingestion-delivery` | 2、3、14 |
 | 首版只收已拼接全景，不引入不确定预处理参数 | `media-ingestion-delivery` | 2 |
 | 管理员可视化幂等导入，不手写 JSON，Task ID 不回收 | `media-ingestion-delivery`、`task-batch-assignment` | 2 |
@@ -198,7 +203,7 @@ AuditRun 只允许注册类型，读取冻结 hash，输出不可变 Artifact，
 | 管理员按钮计算不可变当前快照，实时仅运营轻指标 | `admin-audit-export` | 13 |
 | GuidanceEvent 仅向目标工人投递/展示并由其确认；微信/Upwork 可指导，但平台不提供回复线程、聊天或支付 | `admin-audit-export` | 13、15 |
 | 当前审计流未来原生重做，不运行任意论文脚本 | `prediction-assist`、`admin-audit-export` | 6、13 |
-| A-line 原生但分阶段，worker-facing 不阻塞首版 | `prediction-assist`、`platform-boundaries` | 6 |
+| 外部 A-line/Manhattan 不与 V1 耦合；未来是否适配由独立 change 决定 | `prediction-assist`、`platform-boundaries` | 6 |
 | 批次导出不等于 Final Gold；Dataset/Model Release 延后 | `admin-audit-export`、`platform-boundaries` | 13 |
 | 小团队备份基线，不做企业级热备 | `admin-audit-export` | 14 |
 | 中英文、UTC/本地时区、全球工人和最小隐私告知 | `platform-boundaries` | 14、15 |
@@ -216,7 +221,7 @@ AuditRun 只允许注册类型，读取冻结 hash，输出不可变 Artifact，
 - [浏览器崩溃或多设备覆盖草稿] → 服务端 autosave + IndexedDB patch + 乐观并发 + 单工作区接管；冲突不自动 merge。
 - [Post-POC 浏览器本地 WebGL 差异影响正式 3D] → 在 geometry authority 获确认后建立 Chrome/Edge 支持矩阵、设备预检、固定 engine、状态 hash 和回归图形测试；POC wireframe 不依赖 WebGL。
 - [复用开源代码引入许可证或模型耦合] → 逐文件许可证审查和来源清单；优先复用理念/算法接口，不复制 Label Studio canonical 模型。
-- [平台范围一次过大] → tasks 采用垂直切片与阶段 gate；未来 CAD/桌面/A-line/Release 明确不阻塞 V1。
+- [平台范围一次过大] → tasks 采用垂直切片与阶段 gate；CAD、桌面端、外部 A-line/Manhattan 和 Release 均移出 V1 change。
 - [隐私与画像引发误用] → 工人不见排名，时间/IP不作质量真值，管理员界面显示支持和不确定性，数据告知版本化。
 
 ## Migration Plan
@@ -234,7 +239,7 @@ AuditRun 只允许注册类型，读取冻结 hash，输出不可变 Artifact，
 
 以下不是未决产品语义，而是实施前通过测试/试点确定并版本化的参数：
 
-- ScopePolicy 新增自动处置 reason 的试点白名单；Manhattan、正式 3D 与由正式 geometry authority 定义的 pair 质量阈值仍只在 7.7 获确认后确定。`canonical-2d-consensus-v1` 的运营相似度参数已在本 amendment 中确认，不得被解释为正式几何质量门槛。
+- ScopePolicy 新增自动处置 reason 的试点白名单。Manhattan、正式 3D 与由正式 geometry authority 定义的 pair 质量阈值不在 V1 内确定；它们必须等待外部合同稳定后的独立 change。`canonical-2d-consensus-v1` 的运营相似度参数已在本 amendment 中确认，不得被解释为正式几何质量门槛。
 - 不同数据集/模式的 TaskFeatureVector、CalibrationPolicy 支持/不确定性门槛和分层探索配额初值。
 - COS 全球性能验收阈值以及是否需要未来 CDN change。
 - 具体托管运行环境与预发布负载测试后所需 CPU、内存、数据库连接和应用带宽。

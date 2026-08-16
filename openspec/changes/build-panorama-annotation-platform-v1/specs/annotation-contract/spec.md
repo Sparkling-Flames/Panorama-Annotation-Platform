@@ -107,6 +107,17 @@ PortalObservation SHALL 只描述物理结构观察。是否由 portal 切分目
 - **WHEN** 下游导出 enclosed target 所需的 protocol closure
 - **THEN** 导出明确标记 `physical=false` 并追溯 source portal/policy，不把虚拟边混入 physical-wall 训练标签
 
+### Requirement: 工人端精度辅助没有 canonical authority
+2D 编辑器 MAY 从当前已授权 MediaVariant 和内存 DraftState 派生点级局部放大、pair 连线和 seam 标记。所有辅助结果 MUST 是瞬态只读输出，不得新增、删除、吸附、拉直、批量移动、重排或补全 canonical 点。只有工人显式完成 add、delete、move、order 或 seam 操作才可改变 DraftState、`state_sha` 和 Undo/Redo；Manual 不得因辅助层预填 Prediction。点级遮挡/evidence 若未来获批进入 canonical，MUST 经独立 OpenSpec change 使用新的 schema_version 和新 Task，不能追写当前 Revision。
+
+#### Scenario: 拖动时检查局部细节
+- **WHEN** 工人拖动某个 top 或 bottom 点并使用局部放大镜检查当前全景像素
+- **THEN** pointer move 只更新瞬态裁剪与坐标反馈，释放指针后才把工人明确选择的位置作为一个可撤销移动提交
+
+#### Scenario: 取消精度辅助检查
+- **WHEN** 工人在放大检查期间取消拖动或关闭被动提示
+- **THEN** 系统移除瞬态辅助且保持 DraftState、`state_sha`、稳定 ID 和历史栈不变，不自动 snapping 或写回建议点位
+
 ### Requirement: 服务器验证 canonical 数据
 服务器 MUST 独立验证坐标有限性、范围、稳定 pair/point/portal ID 唯一性、pair 与 portal 完整性、order_index 连续性、seam/host edge 引用、worker scope/reason/attempt 组合及元标签 schema。客户端验证通过不得替代服务器验证。
 

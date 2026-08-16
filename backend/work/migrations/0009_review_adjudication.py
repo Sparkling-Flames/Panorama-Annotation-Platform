@@ -22,7 +22,7 @@ def create_immutable_triggers(_apps: Any, schema_editor: Any) -> None:
                 RAISE EXCEPTION 'Review and adjudication records are immutable.'
                     USING ERRCODE = '23000';
             END;
-            $$ LANGUAGE plpgsql
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
             """
         )
         for table in TABLES:

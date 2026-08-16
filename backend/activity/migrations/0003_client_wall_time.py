@@ -23,7 +23,7 @@ def create_event_triggers(_apps: Any, schema_editor: Any) -> None:
             BEGIN
                 RAISE EXCEPTION 'Activity events are immutable.' USING ERRCODE = '23000';
             END;
-            $$ LANGUAGE plpgsql
+            $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
             """
         )
         schema_editor.execute(

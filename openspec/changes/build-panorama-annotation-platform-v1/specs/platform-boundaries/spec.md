@@ -54,7 +54,7 @@ Task、Revision、Preview、Activity、Assessment、Consensus、Profile、Metric
 - **THEN** 独立转换工具读取冻结导出并生成带映射和 hash 的离线 bundle，新平台运行时保持无依赖
 
 ### Requirement: 未来适配器不阻塞首版
-首版 SHALL 不实现桌面客户端、工人本地媒体包、CAD adapter、worker-facing A-line、云端在线推理、复杂自动路由、DatasetRelease 或 ModelRelease UI。架构可保留明确接口，但这些功能必须通过未来独立 OpenSpec change 获批。
+首版 SHALL 不实现桌面客户端、工人本地媒体包、CAD adapter、外部 A-line/Manhattan 集成或其产物 schema、云端在线推理、复杂自动路由、DatasetRelease 或 ModelRelease UI。V1 不得依赖外部工具代码、版本或输出类型；这些功能必须通过未来独立 OpenSpec change 获批，届时再决定是否新增边界适配器。
 
 #### Scenario: 请求未来桌面客户端
 - **WHEN** 团队准备开发单窗口、单实例且复用 Web 编辑器的桌面端

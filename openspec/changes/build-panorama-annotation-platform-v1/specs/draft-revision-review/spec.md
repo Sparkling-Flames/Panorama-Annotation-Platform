@@ -77,7 +77,7 @@ Assignment 的每个 DraftCycle SHALL 至多存在一个服务器端 CurrentDraf
 - **THEN** 系统可改善其返工表现指标，但不得回写抹去初始 scope observation 或将返工作为独立初始质量证据
 
 ### Requirement: 只永久记录必要过程证据
-服务器 SHALL 永久保存提交、scope/portal evidence、BlockReport 及管理员处置、Review、Adjudication、管理员操作、严重 Manhattan 警告确认、指导暴露以及未来 Assist Apply/Ignore/Undo 等必要事件；普通暂时跳过只需保存当前 `queue_state=deferred`，不得为每次重复点击建立终局 Skip 记录。系统不得永久保存普通鼠标轨迹、每次点移动或键盘内容。
+服务器 SHALL 永久保存提交、scope/portal evidence、BlockReport 及管理员处置、Review、Adjudication、管理员操作、指导暴露以及当前已注册 Assist 的 Apply/Ignore/Undo 等必要事件；普通暂时跳过只需保存当前 `queue_state=deferred`，不得为每次重复点击建立终局 Skip 记录。外部专家工具事件的保留合同必须由其未来独立 OpenSpec change 定义。系统不得永久保存普通鼠标轨迹、每次点移动或键盘内容。
 
 #### Scenario: 工人连续拖动角点
 - **WHEN** 工人在一次编辑动作中产生大量 pointer move

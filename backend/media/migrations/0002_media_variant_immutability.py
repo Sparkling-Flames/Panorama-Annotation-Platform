@@ -16,7 +16,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
 
 CREATE TRIGGER media_variant_immutable_after_publication
 BEFORE UPDATE OR DELETE ON media_mediavariant

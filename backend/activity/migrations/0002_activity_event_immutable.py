@@ -11,7 +11,7 @@ POSTGRES_CREATE = (
     BEGIN
         RAISE EXCEPTION 'Activity events are immutable.' USING ERRCODE = '23000';
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql SET search_path = pg_catalog, public
     """,
     """
     CREATE TRIGGER activity_event_immutable

@@ -59,6 +59,32 @@ jobs:
           DJANGO_SECRET_KEY: "django-insecure-ci-postgres-only"
           POSTGRES_PASSWORD: postgres-test-password
         run: |
+          python - <<'PY'
+          import os
+
+          import psycopg
+          from psycopg import sql
+
+          with psycopg.connect(
+              dbname=os.environ.get("POSTGRES_DB", "panorama_annotation"),
+              user=os.environ.get("POSTGRES_USER", "panorama_annotation"),
+              password=os.environ["POSTGRES_PASSWORD"],
+              host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),
+              port=os.environ.get("POSTGRES_PORT", "5432"),
+              autocommit=True,
+          ) as database, database.cursor() as cursor:
+              for role_name in ("anon", "authenticated", "service_role"):
+                  cursor.execute(
+                      "SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = %s",
+                      [role_name],
+                  )
+                  if cursor.fetchone() is None:
+                      cursor.execute(
+                          sql.SQL("CREATE ROLE {} NOLOGIN").format(
+                              sql.Identifier(role_name)
+                          )
+                      )
+          PY
           python backend/manage.py migrate work --noinput
           python backend/manage.py migrate work 0001 --noinput
           python backend/manage.py migrate work --noinput
@@ -66,6 +92,7 @@ jobs:
           python -m pytest \
             backend/tests/test_activity_api.py \
             backend/tests/test_analysis_jobs_postgres.py \
+            backend/tests/test_database_security_postgres.py \
             backend/tests/test_media_immutability_postgres.py \
             backend/tests/identity/test_audit_event_immutability_postgres.py \
             backend/tests/test_revision_immutability_postgres.py \

@@ -2,6 +2,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -45,9 +46,96 @@ type DragPoint = NormalizedPoint & {
   point: PointKey;
   pointerId: number;
 };
+type MagnifierFocus = NormalizedPoint & { label: string };
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 500;
 const MAX_U = 0.9999999999999999;
+const MAGNIFIER_RADIUS = 72;
+const MAGNIFIER_SCALE = 4;
+
+function PointMagnifier({
+  backgroundImageUrl,
+  clipPathId,
+  focus,
+}: {
+  backgroundImageUrl?: string;
+  clipPathId: string;
+  focus: MagnifierFocus;
+}) {
+  const focusX = focus.u * CANVAS_WIDTH;
+  const focusY = focus.v * CANVAS_HEIGHT;
+  const lensX =
+    focusX <= CANVAS_WIDTH / 2
+      ? Math.min(CANVAS_WIDTH - MAGNIFIER_RADIUS - 8, focusX + 112)
+      : Math.max(MAGNIFIER_RADIUS + 8, focusX - 112);
+  const lensY = Math.min(
+    CANVAS_HEIGHT - MAGNIFIER_RADIUS - 8,
+    Math.max(MAGNIFIER_RADIUS + 8, focusY),
+  );
+
+  return (
+    <g
+      aria-label={`${focus.label}局部放大镜`}
+      data-focus-u={focus.u}
+      data-focus-v={focus.v}
+      pointerEvents="none"
+      role="img"
+    >
+      <defs>
+        <clipPath id={clipPathId}>
+          <circle cx={lensX} cy={lensY} r={MAGNIFIER_RADIUS} />
+        </clipPath>
+      </defs>
+      <circle cx={lensX} cy={lensY} fill="#fffdf8" r={MAGNIFIER_RADIUS} />
+      {backgroundImageUrl ? (
+        <image
+          clipPath={`url(#${clipPathId})`}
+          crossOrigin="anonymous"
+          height={CANVAS_HEIGHT * MAGNIFIER_SCALE}
+          href={backgroundImageUrl}
+          preserveAspectRatio="none"
+          width={CANVAS_WIDTH * MAGNIFIER_SCALE}
+          x={lensX - focusX * MAGNIFIER_SCALE}
+          y={lensY - focusY * MAGNIFIER_SCALE}
+        />
+      ) : null}
+      <circle
+        cx={lensX}
+        cy={lensY}
+        fill="none"
+        r={MAGNIFIER_RADIUS}
+        stroke="#15221d"
+        strokeWidth="5"
+      />
+      <line
+        stroke="#f7c948"
+        strokeWidth="3"
+        x1={lensX - 14}
+        x2={lensX + 14}
+        y1={lensY}
+        y2={lensY}
+      />
+      <line
+        stroke="#f7c948"
+        strokeWidth="3"
+        x1={lensX}
+        x2={lensX}
+        y1={lensY - 14}
+        y2={lensY + 14}
+      />
+      <text
+        fill="#15221d"
+        fontSize="18"
+        fontWeight="700"
+        textAnchor="middle"
+        x={lensX}
+        y={Math.min(CANVAS_HEIGHT - 8, lensY + MAGNIFIER_RADIUS + 24)}
+      >
+        {`${focus.label} · u ${focus.u.toFixed(4)} · v ${focus.v.toFixed(4)}`}
+      </text>
+    </g>
+  );
+}
 
 function reindex(pairs: AnnotationPointPair[]): AnnotationPointPair[] {
   return pairs.map((pair, order_index) => ({ ...pair, order_index }));
@@ -115,9 +203,11 @@ export function AnnotationEditor({
     initialHistory ?? { future: [], past: [], present: initialState },
   );
   const [pendingPair, setPendingPair] = useState<PendingPair | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<NormalizedPoint | null>(null);
   const [portalEditing, setPortalEditing] = useState(false);
   const [dragPreview, setDragPreview] = useState<DragPoint | null>(null);
   const [stateSha, setStateSha] = useState("");
+  const magnifierClipId = `point-magnifier-${useId().replaceAll(":", "")}`;
   const drag = useRef<DragPoint | null>(null);
   const onChangeRef = useRef(onChange);
   const lastReportedState = useRef(initialState);
@@ -245,12 +335,19 @@ export function AnnotationEditor({
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const next = { pairId, point, pointerId: event.pointerId, ...coordinates };
+    setPendingPreview(null);
     drag.current = next;
     setDragPreview(next);
   }
 
   function moveDrag(event: ReactPointerEvent<SVGSVGElement>): void {
-    if (drag.current === null || drag.current.pointerId !== event.pointerId) {
+    if (drag.current === null) {
+      if (pendingPair !== null) {
+        setPendingPreview(normalizedPoint(event));
+      }
+      return;
+    }
+    if (drag.current.pointerId !== event.pointerId) {
       return;
     }
     const coordinates = normalizedPoint(event);
@@ -275,11 +372,13 @@ export function AnnotationEditor({
     );
     drag.current = null;
     setDragPreview(null);
+    setPendingPreview(null);
   }
 
   function cancelDrag(): void {
     drag.current = null;
     setDragPreview(null);
+    setPendingPreview(null);
   }
 
   function addPoint(event: ReactMouseEvent<SVGSVGElement>): void {
@@ -292,6 +391,7 @@ export function AnnotationEditor({
     }
     if (pendingPair.top === undefined) {
       setPendingPair({ top: point });
+      setPendingPreview(null);
       return;
     }
     const top = pendingPair.top;
@@ -304,12 +404,29 @@ export function AnnotationEditor({
       };
     });
     setPendingPair(null);
+    setPendingPreview(null);
   }
 
   function displayedPoint(pair: AnnotationPointPair, point: PointKey): AnnotationPoint {
     return dragPreview?.pairId === pair.pair_id && dragPreview.point === point
       ? { ...pair[point], u: dragPreview.u, v: dragPreview.v }
       : pair[point];
+  }
+
+  let magnifierFocus: MagnifierFocus | null = null;
+  if (dragPreview !== null) {
+    const pairIndex = state.pairs.findIndex((pair) => pair.pair_id === dragPreview.pairId);
+    const pointLabel = dragPreview.point === "top" ? "顶点" : "底点";
+    magnifierFocus = {
+      label: `第 ${pairIndex + 1} 对${pointLabel}`,
+      u: dragPreview.u,
+      v: dragPreview.v,
+    };
+  } else if (pendingPair !== null && pendingPreview !== null) {
+    magnifierFocus = {
+      label: pendingPair.top === undefined ? "待创建角点对顶点" : "待创建角点对底点",
+      ...pendingPreview,
+    };
   }
 
   return (
@@ -331,11 +448,24 @@ export function AnnotationEditor({
           >
             重做
           </button>
-          <button disabled={pendingPair !== null} onClick={() => setPendingPair({})} type="button">
+          <button
+            disabled={pendingPair !== null}
+            onClick={() => {
+              setPendingPair({});
+              setPendingPreview(null);
+            }}
+            type="button"
+          >
             添加角点对
           </button>
           {pendingPair !== null ? (
-            <button onClick={() => setPendingPair(null)} type="button">
+            <button
+              onClick={() => {
+                setPendingPair(null);
+                setPendingPreview(null);
+              }}
+              type="button"
+            >
               取消添加
             </button>
           ) : null}
@@ -353,6 +483,7 @@ export function AnnotationEditor({
           aria-label="全景规范化坐标编辑区"
           onClick={addPoint}
           onPointerCancel={cancelDrag}
+          onPointerLeave={() => setPendingPreview(null)}
           onPointerMove={moveDrag}
           onPointerUp={finishDrag}
           style={{ border: "1px solid currentColor", touchAction: "none", width: "100%" }}
@@ -433,6 +564,13 @@ export function AnnotationEditor({
               cy={pendingPair.top.v * CANVAS_HEIGHT}
               fill="#2f6fed"
               r="11"
+            />
+          ) : null}
+          {magnifierFocus !== null ? (
+            <PointMagnifier
+              backgroundImageUrl={backgroundImageUrl}
+              clipPathId={magnifierClipId}
+              focus={magnifierFocus}
             />
           ) : null}
         </svg>
