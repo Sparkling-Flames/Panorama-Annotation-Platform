@@ -14,7 +14,7 @@ describe("PredictionImportWizard", () => {
     document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
   });
 
-  it("PAP-PAS-SC-005 PAP-PAS-SC-006 previews a local layout overlay and freezes it without a model runtime", async () => {
+  it("PAP-PAS-SC-003 PAP-PAS-SC-005 PAP-PAS-SC-006 previews a local layout, freezes it, and creates a Semi Task without a model runtime", async () => {
     document.cookie = "csrftoken=test-csrf; path=/";
     const layoutText = JSON.stringify({
       image_filename: "room.jpg",
@@ -38,9 +38,14 @@ describe("PredictionImportWizard", () => {
             expires_at: "2026-08-10T12:00:00Z",
             importer_version: "panorama-layout-json-v1",
             preview_id: "preview-001",
+            media_variants: [
+              { media_variant_id: "variant-001", role: "compressed" },
+              { media_variant_id: "variant-002", role: "high_resolution" },
+            ],
             preview_media: {
               coordinate_mapping: "normalized_identity",
               height: 10,
+              media_variant_id: "variant-001",
               role: "compressed",
               url: "https://cos.test/room.jpg?versionId=v1",
               width: 20,
@@ -72,6 +77,12 @@ describe("PredictionImportWizard", () => {
           },
           201,
         ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { mode: "semi", reused: true, status: "published", task_id: "semi-task-001" },
+          200,
+        ),
       );
     vi.stubGlobal("fetch", fetchMock);
     const file = new File([layoutText], "layout.json", { type: "application/json" });
@@ -100,6 +111,8 @@ describe("PredictionImportWizard", () => {
     expect(line).toHaveAttribute("x1", "0.2");
     expect(line).toHaveAttribute("y1", "0.1");
     expect(screen.queryByRole("textbox", { name: /script/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/compressed · variant-001/)).toBeInTheDocument();
+    expect(screen.getByText(/high_resolution · variant-002/)).toBeInTheDocument();
 
     const previewCall = fetchMock.mock.calls[0];
     expect(previewCall?.[0]).toBe("/api/admin/predictions/preview");
@@ -117,5 +130,18 @@ describe("PredictionImportWizard", () => {
     expect(await screen.findByText(/artifact-001/)).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/admin/predictions/preview-001/publish");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "创建并发布 Semi Task / Create and publish Semi Task",
+      }),
+    );
+    expect(await screen.findByText(/已复用现有 Semi Task.*semi-task-001/)).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/admin/predictions/artifact-001/semi-tasks");
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({
+      body: JSON.stringify({ media_variant_ids: ["variant-001", "variant-002"] }),
+      method: "POST",
+    });
   });
 });

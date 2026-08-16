@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.db import DatabaseError, transaction
 from django.test import Client
 from django.utils import timezone
-from identity.models import DataNoticeAcceptance, User
+from identity.models import AuditEvent, DataNoticeAcceptance, User
 from identity.services import CURRENT_DATA_NOTICE_VERSION
 from media.catalog import MediaCatalogCandidate
 from media.models import Asset, MediaVariant
@@ -26,7 +26,13 @@ from work.models import (
     Task,
 )
 from work.prediction import create_prediction_artifact
-from work.services import assign_task, create_task_draft, create_work_batch, publish_task
+from work.services import (
+    assign_task,
+    create_semi_task_from_prediction,
+    create_task_draft,
+    create_work_batch,
+    publish_task,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -48,6 +54,30 @@ def media_contract(suffix: str) -> tuple[Asset, MediaVariant]:
     )
     variant.publish()
     return asset, variant
+
+
+def additional_media_variant(
+    asset: Asset,
+    suffix: str,
+    *,
+    published: bool = True,
+) -> MediaVariant:
+    variant = MediaVariant.objects.create(
+        asset=asset,
+        source_key=f"cos://prediction/{suffix}-high.png",
+        object_version="v1-high",
+        content_sha256="d" * 64,
+        content_length=200,
+        content_crc64ecma="22",
+        width=40,
+        height=20,
+        format=MediaVariant.Format.PNG,
+        role=MediaVariant.Role.HIGH_RESOLUTION,
+        coordinate_mapping=MediaVariant.CoordinateMapping.NORMALIZED_IDENTITY,
+    )
+    if published:
+        variant.publish()
+    return variant
 
 
 def prediction_state() -> AnnotationStatePayload:
@@ -329,6 +359,7 @@ def test_pap_pas_sc_002_pap_pas_sc_006_frozen_semi_initialization_needs_no_model
 
 def test_pap_pas_sc_005_admin_previews_local_layout_then_freezes_the_same_artifact() -> None:
     asset, variant = media_contract("admin-import")
+    high_resolution = additional_media_variant(asset, "admin-import")
     admin = User.objects.create_user(username="prediction-admin", role=User.Role.ADMIN)
     other_admin = User.objects.create_user(username="other-prediction-admin", role=User.Role.ADMIN)
     client = Client()
@@ -388,6 +419,17 @@ def test_pap_pas_sc_005_admin_previews_local_layout_then_freezes_the_same_artifa
     }
     assert preview["state"]["pairs"][1]["bottom"]["u"] == 0.6
     assert preview["preview_media"]["url"] == candidate.preview_url
+    assert preview["preview_media"]["media_variant_id"] == str(variant.media_variant_id)
+    assert preview["media_variants"] == [
+        {
+            "media_variant_id": str(variant.media_variant_id),
+            "role": MediaVariant.Role.COMPRESSED,
+        },
+        {
+            "media_variant_id": str(high_resolution.media_variant_id),
+            "role": MediaVariant.Role.HIGH_RESOLUTION,
+        },
+    ]
     assert preview["raw_output_sha256"]
     assert "layout_text" not in preview
 
@@ -417,6 +459,192 @@ def test_pap_pas_sc_005_admin_previews_local_layout_then_freezes_the_same_artifa
     assert frozen.state == preview["state"]
     assert frozen.inference_config == {"config": "local-model.yaml"}
     assert frozen.asset_id == asset.asset_id
+
+
+def test_pap_pas_sc_003_admin_creates_a_published_semi_task_from_a_frozen_artifact() -> None:
+    asset, variant = media_contract("semi-task-api")
+    high_resolution = additional_media_variant(asset, "semi-task-api")
+    frozen = artifact(asset)
+    administrator = User.objects.create_user(
+        username="semi-task-administrator",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    worker = User.objects.create_user(
+        username="semi-task-worker",
+        role=User.Role.WORKER,
+        must_change_password=False,
+    )
+    admin_client = Client()
+    admin_client.force_login(administrator)
+    worker_client = Client()
+    worker_client.force_login(worker)
+    request_body = {
+        "media_variant_ids": [
+            str(variant.media_variant_id),
+            str(high_resolution.media_variant_id),
+        ]
+    }
+
+    created = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps(request_body),
+        content_type="application/json",
+    )
+
+    assert created.status_code == 201, created.content.decode()
+    payload = created.json()
+    assert set(payload) == {"mode", "reused", "status", "task_id"}
+    assert payload["mode"] == Task.Mode.SEMI
+    assert payload["reused"] is False
+    assert payload["status"] == Task.Status.PUBLISHED
+    task = Task.objects.get(task_id=payload["task_id"])
+    assert task.asset_id == asset.asset_id
+    assert task.prediction_artifact_id == frozen.artifact_id
+    assert task.prediction_artifact_sha256 == frozen.artifact_sha256
+    assert set(task.allowed_media_variants.values_list("media_variant_id", flat=True)) == {
+        variant.media_variant_id,
+        high_resolution.media_variant_id,
+    }
+    assert AuditEvent.objects.filter(
+        actor=administrator,
+        action="task.published",
+        target_id=str(task.task_id),
+        target_type="task",
+    ).exists()
+
+    replayed = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps({"media_variant_ids": list(reversed(request_body["media_variant_ids"]))}),
+        content_type="application/json",
+    )
+    assert replayed.status_code == 200
+    assert replayed.json() == {**payload, "reused": True}
+    assert Task.objects.filter(asset=asset, mode=Task.Mode.SEMI).count() == 1
+    assert (
+        AuditEvent.objects.filter(
+            actor=administrator,
+            action="task.published",
+            target_type="task",
+        ).count()
+        == 1
+    )
+
+    worker_rejected = worker_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps(request_body),
+        content_type="application/json",
+    )
+    extra_field_rejected = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps({**request_body, "mode": "manual"}),
+        content_type="application/json",
+    )
+    other_asset, other_variant = media_contract("semi-task-other-asset")
+    cross_asset_rejected = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps({"media_variant_ids": [str(other_variant.media_variant_id)]}),
+        content_type="application/json",
+    )
+
+    assert worker_rejected.status_code == 403
+    assert worker_rejected.json() == {"error": {"code": "admin_required"}}
+    assert extra_field_rejected.status_code == 400
+    assert extra_field_rejected.json() == {"error": {"code": "invalid_semi_task_request"}}
+    assert cross_asset_rejected.status_code == 409
+    assert cross_asset_rejected.json() == {"error": {"code": "task_media_mismatch"}}
+    assert not Task.objects.filter(asset=other_asset, mode=Task.Mode.SEMI).exists()
+
+
+def test_semi_task_api_rejects_unpublished_media_without_side_effects() -> None:
+    asset, _variant = media_contract("semi-task-unpublished")
+    unpublished = additional_media_variant(asset, "semi-task-unpublished", published=False)
+    frozen = artifact(asset)
+    administrator = User.objects.create_user(
+        username="semi-task-unpublished-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+
+    rejected = client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps({"media_variant_ids": [str(unpublished.media_variant_id)]}),
+        content_type="application/json",
+    )
+
+    assert rejected.status_code == 409
+    assert rejected.json() == {"error": {"code": "task_media_unpublished"}}
+    assert not Task.objects.filter(mode=Task.Mode.SEMI).exists()
+    assert not AuditEvent.objects.filter(action="task.published", target_type="task").exists()
+
+
+def test_semi_task_api_rejects_invalid_or_unknown_resources_without_side_effects() -> None:
+    asset, variant = media_contract("semi-task-invalid")
+    frozen = artifact(asset)
+    administrator = User.objects.create_user(
+        username="semi-task-invalid-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+    path = f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks"
+
+    for body in (
+        {},
+        {"media_variant_ids": []},
+        {"media_variant_ids": ["not-a-uuid"]},
+        {
+            "media_variant_ids": [
+                str(variant.media_variant_id),
+                str(variant.media_variant_id),
+            ]
+        },
+    ):
+        response = client.post(path, data=json.dumps(body), content_type="application/json")
+        assert response.status_code == 400
+        assert response.json() == {"error": {"code": "invalid_semi_task_request"}}
+
+    missing_variant = client.post(
+        path,
+        data=json.dumps({"media_variant_ids": [str(uuid4())]}),
+        content_type="application/json",
+    )
+    missing_artifact = client.post(
+        f"/api/admin/predictions/{uuid4()}/semi-tasks",
+        data=json.dumps({"media_variant_ids": [str(variant.media_variant_id)]}),
+        content_type="application/json",
+    )
+    assert missing_variant.status_code == 404
+    assert missing_variant.json() == {"error": {"code": "resource_not_found"}}
+    assert missing_artifact.status_code == 404
+    assert missing_artifact.json() == {"error": {"code": "resource_not_found"}}
+    assert not Task.objects.filter(mode=Task.Mode.SEMI).exists()
+    assert not AuditEvent.objects.filter(action="task.published", target_type="task").exists()
+
+
+def test_semi_task_publication_rolls_back_when_the_audit_write_fails() -> None:
+    asset, variant = media_contract("semi-task-audit-rollback")
+    frozen = artifact(asset)
+    administrator = User.objects.create_user(
+        username="semi-task-audit-rollback-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+
+    with (
+        patch("work.services.record_audit_event", side_effect=RuntimeError("audit unavailable")),
+        pytest.raises(RuntimeError, match="audit unavailable"),
+    ):
+        create_semi_task_from_prediction(
+            actor=administrator,
+            prediction_artifact_id=frozen.artifact_id,
+            media_variant_ids=[variant.media_variant_id],
+        )
+
+    assert not Task.objects.filter(mode=Task.Mode.SEMI).exists()
 
 
 def test_pap_pas_sc_011_prediction_import_rejects_unregistered_scripts() -> None:

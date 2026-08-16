@@ -63,6 +63,7 @@ from .services import (
     create_guidance_event,
     create_rework_request,
     create_scope_rework_flow,
+    create_semi_task_from_prediction,
     create_work_batch,
     dispose_blocked_assignment,
     freeze_work_batch,
@@ -176,6 +177,15 @@ def prediction_preview_payload(
         "asset_id": str(preview.asset_id),
         "expires_at": preview.expires_at.isoformat().replace("+00:00", "Z"),
         "importer_version": preview.importer_version,
+        "media_variants": [
+            {
+                "media_variant_id": str(variant.media_variant_id),
+                "role": variant.role,
+            }
+            for variant in preview.asset.media_variants.filter(published_at__isnull=False).order_by(
+                "role", "media_variant_id"
+            )
+        ],
         "preview_id": str(preview.preview_id),
         "preview_media": preview_media,
         "raw_output_sha256": preview.raw_output_sha256,
@@ -212,6 +222,7 @@ def _prediction_preview_media(preview: PredictionImportPreview) -> dict[str, obj
         return {
             "coordinate_mapping": variant.coordinate_mapping,
             "height": variant.height,
+            "media_variant_id": str(variant.media_variant_id),
             "role": variant.role,
             "url": candidate.preview_url,
             "width": variant.width,
@@ -560,6 +571,47 @@ def admin_prediction_publish_view(request: HttpRequest, preview_id: UUID) -> Jso
     except ValidationError as error:
         return error_response(error.code or "prediction_preview_conflict", status=409)
     return JsonResponse(prediction_artifact_payload(artifact), status=201 if created else 200)
+
+
+@require_POST
+def admin_prediction_semi_tasks_view(request: HttpRequest, artifact_id: UUID) -> JsonResponse:
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
+    payload = request_json(request)
+    raw_variant_ids = None if payload is None else payload.get("media_variant_ids")
+    if (
+        payload is None
+        or set(payload) != {"media_variant_ids"}
+        or not isinstance(raw_variant_ids, list)
+        or not raw_variant_ids
+        or any(not isinstance(value, str) for value in raw_variant_ids)
+    ):
+        return error_response("invalid_semi_task_request", status=400)
+    media_variant_ids = [opaque_uuid(value) for value in raw_variant_ids]
+    if any(value is None for value in media_variant_ids) or len(set(media_variant_ids)) != len(
+        media_variant_ids
+    ):
+        return error_response("invalid_semi_task_request", status=400)
+    try:
+        task, created = create_semi_task_from_prediction(
+            actor=actor,
+            prediction_artifact_id=artifact_id,
+            media_variant_ids=[value for value in media_variant_ids if value is not None],
+        )
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
+    except ValidationError as error:
+        return error_response(error.code or "semi_task_conflict", status=409)
+    return JsonResponse(
+        {
+            "mode": task.mode,
+            "reused": not created,
+            "status": task.status,
+            "task_id": str(task.task_id),
+        },
+        status=201 if created else 200,
+    )
 
 
 @require_POST

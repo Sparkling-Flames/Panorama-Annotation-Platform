@@ -24,6 +24,11 @@ urlpatterns = [
         name="admin-prediction-publish",
     ),
     path(
+        "admin/predictions/<uuid:artifact_id>/semi-tasks",
+        views.admin_prediction_semi_tasks_view,
+        name="admin-prediction-semi-tasks",
+    ),
+    path(
         "admin/media/imports/publish",
         media_workflows.import_publish_view,
         name="media-import-publish",

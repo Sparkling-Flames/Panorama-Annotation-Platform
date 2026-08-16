@@ -1483,7 +1483,10 @@
               "title": "发布合法 Semi Task",
               "test_ids": ["PAP-PAS-SC-003"],
               "coverage_status": "implemented",
-              "test_files": ["backend/tests/test_prediction_artifact.py"]
+              "test_files": [
+                "backend/tests/test_prediction_artifact.py",
+                "frontend/src/prediction/PredictionImportWizard.test.tsx"
+              ]
             },
             {
               "title": "更换 checkpoint 结果",

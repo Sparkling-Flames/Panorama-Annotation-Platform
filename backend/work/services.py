@@ -1333,6 +1333,72 @@ def publish_task(*, task_id: UUID) -> Task:
 
 
 @transaction.atomic
+def create_semi_task_from_prediction(
+    *,
+    actor: User,
+    prediction_artifact_id: UUID,
+    media_variant_ids: Iterable[UUID],
+) -> tuple[Task, bool]:
+    _require_admin(actor)
+    artifact = (
+        PredictionArtifact.objects.select_for_update()
+        .select_related("asset")
+        .filter(artifact_id=prediction_artifact_id)
+        .first()
+    )
+    if artifact is None:
+        raise ResourceNotFound
+
+    requested_ids = tuple(media_variant_ids)
+    variants = list(
+        MediaVariant.objects.select_for_update()
+        .filter(media_variant_id__in=requested_ids)
+        .order_by("role", "media_variant_id")
+    )
+    if len(variants) != len(requested_ids):
+        raise ResourceNotFound
+
+    requested_id_set = {item.media_variant_id for item in variants}
+    existing_tasks = (
+        Task.objects.filter(
+            asset=artifact.asset,
+            mode=Task.Mode.SEMI,
+            prediction_artifact_id=artifact.artifact_id,
+            prediction_artifact_sha256=artifact.artifact_sha256,
+            status=Task.Status.PUBLISHED,
+        )
+        .prefetch_related("allowed_media_variants")
+        .order_by("created_at", "task_id")
+    )
+    for existing in existing_tasks:
+        if {
+            item.media_variant_id for item in existing.allowed_media_variants.all()
+        } == requested_id_set:
+            return existing, False
+
+    draft = create_task_draft(
+        asset=artifact.asset,
+        media_variants=variants,
+        mode=Task.Mode.SEMI,
+        prediction_artifact=artifact,
+    )
+    task = publish_task(task_id=draft.task_id)
+    record_audit_event(
+        actor=actor,
+        target_type="task",
+        target_id=task.task_id,
+        action="task.published",
+        reason="prediction_artifact_binding",
+        details={
+            "asset_id": str(artifact.asset_id),
+            "media_variant_ids": [str(item.media_variant_id) for item in variants],
+            "prediction_artifact_id": str(artifact.artifact_id),
+        },
+    )
+    return task, True
+
+
+@transaction.atomic
 def tombstone_task(*, task_id: UUID, reason: str) -> Task:
     task = Task.objects.select_for_update().get(task_id=task_id)
     if task.status != Task.Status.DRAFT:
