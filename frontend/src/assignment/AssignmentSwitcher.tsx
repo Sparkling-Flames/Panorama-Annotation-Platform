@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../api";
 import type { MetaContract } from "../annotationState";
@@ -91,10 +91,19 @@ export function AssignmentSwitcher({
   const [listRetry, setListRetry] = useState(0);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [loadingBatches, setLoadingBatches] = useState(true);
+  const [reworkListRetry, setReworkListRetry] = useState(0);
   const [reworkRequests, setReworkRequests] = useState<ReworkRequest[]>([]);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [workspaceSafe, setWorkspaceSafe] = useState(true);
+  const assignmentListGeneration = useRef(0);
+  const canRefreshLists =
+    online &&
+    writable &&
+    workspaceSafe &&
+    busyAssignmentId === null &&
+    blockDraft === null &&
+    selectedAssignmentId === null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -106,6 +115,7 @@ export function AssignmentSwitcher({
           throw new Error("batch list unavailable");
         }
         const payload = (await response.json()) as { batches: WorkBatch[] };
+        if (controller.signal.aborted) return;
         setBatches(payload.batches);
         setSelectedBatchId((current) => current ?? payload.batches[0]?.batch_id ?? null);
         setLoadingBatches(false);
@@ -120,6 +130,7 @@ export function AssignmentSwitcher({
   }, [listRetry]);
 
   useEffect(() => {
+    const requestGeneration = ++assignmentListGeneration.current;
     if (selectedBatchId === null) {
       setAssignments([]);
       return;
@@ -138,17 +149,59 @@ export function AssignmentSwitcher({
           throw new Error("assignment list unavailable");
         }
         const payload = (await response.json()) as { assignments: Assignment[] };
+        if (controller.signal.aborted || requestGeneration !== assignmentListGeneration.current) {
+          return;
+        }
         setAssignments(payload.assignments);
         setLoadingAssignments(false);
       })
       .catch(() => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && requestGeneration === assignmentListGeneration.current) {
           setError(true);
           setLoadingAssignments(false);
         }
       });
     return () => controller.abort();
   }, [listRetry, selectedBatchId]);
+
+  useEffect(() => {
+    if (!canRefreshLists || selectedBatchId === null) return;
+    let activeController: AbortController | null = null;
+    const refreshCurrentAssignments = () => {
+      activeController?.abort();
+      const controller = new AbortController();
+      const requestGeneration = ++assignmentListGeneration.current;
+      activeController = controller;
+      setError(false);
+      void apiFetch(`/api/worker/batches/${selectedBatchId}/assignments`, {
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("assignment list unavailable");
+          const payload = (await response.json()) as { assignments: Assignment[] };
+          if (controller.signal.aborted || requestGeneration !== assignmentListGeneration.current) {
+            return;
+          }
+          setAssignments(payload.assignments);
+          setLoadingAssignments(false);
+          setReworkListRetry((value) => value + 1);
+        })
+        .catch(() => {
+          if (
+            !controller.signal.aborted &&
+            requestGeneration === assignmentListGeneration.current
+          ) {
+            setError(true);
+            setLoadingAssignments(false);
+          }
+        });
+    };
+    window.addEventListener("focus", refreshCurrentAssignments);
+    return () => {
+      window.removeEventListener("focus", refreshCurrentAssignments);
+      activeController?.abort();
+    };
+  }, [canRefreshLists, listRetry, selectedBatchId]);
 
   const hasReviewFeedback = assignments.some(
     (assignment) => assignment.review_state === "changes_requested",
@@ -164,13 +217,14 @@ export function AssignmentSwitcher({
       .then(async (response) => {
         if (!response.ok) throw new Error("rework list unavailable");
         const payload = (await response.json()) as { requests: ReworkRequest[] };
+        if (controller.signal.aborted) return;
         setReworkRequests(payload.requests);
       })
       .catch(() => {
         if (!controller.signal.aborted) setError(true);
       });
     return () => controller.abort();
-  }, [hasReviewFeedback, listRetry]);
+  }, [hasReviewFeedback, listRetry, reworkListRetry]);
 
   async function updateAssignment(
     assignment: Assignment,

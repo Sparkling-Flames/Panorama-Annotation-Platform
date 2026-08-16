@@ -950,6 +950,30 @@
           ]
         },
         {
+          "requirement_id": "PAP-DRR-REQ-011",
+          "title": "工人在安全前台刷新点读取返工通知",
+          "scenarios": [
+            {
+              "title": "工人切回窗口后看到新建返工",
+              "test_ids": ["PAP-DRR-SC-017"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/AssignmentSwitcher.test.tsx"]
+            },
+            {
+              "title": "旧前台读取晚到",
+              "test_ids": ["PAP-DRR-SC-018"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/AssignmentSwitcher.test.tsx"]
+            },
+            {
+              "title": "编辑器打开时保持本地编辑状态",
+              "test_ids": ["PAP-DRR-SC-019"],
+              "coverage_status": "implemented",
+              "test_files": ["frontend/src/assignment/AssignmentSwitcher.test.tsx"]
+            }
+          ]
+        },
+        {
           "requirement_id": "PAP-DRR-REQ-008",
           "title": "反馈暴露与独立证据分离",
           "scenarios": [

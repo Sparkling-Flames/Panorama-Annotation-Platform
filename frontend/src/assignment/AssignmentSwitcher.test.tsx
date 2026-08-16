@@ -1,10 +1,18 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AssignmentSwitcher } from "./AssignmentSwitcher";
 
 function jsonResponse(body: object, status = 200): Response {
   return { json: async () => body, ok: status >= 200 && status < 300, status } as Response;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
 }
 
 const first = {
@@ -25,6 +33,48 @@ const second = {
   review_state: "unreviewed",
   task: { external_task_key: "warehouse-b", mode: "manual", task_id: "task-002" },
   work_state: "assigned",
+};
+
+const savedState = {
+  geometry_attempt_reason_text: "",
+  geometry_attempt_status: "best_effort_complete",
+  pairs: [
+    {
+      bottom: {
+        point_id: "00000000-0000-4000-8000-000000000003",
+        u: 0.12,
+        v: 0.88,
+      },
+      order_index: 0,
+      pair_id: "00000000-0000-4000-8000-000000000001",
+      top: {
+        point_id: "00000000-0000-4000-8000-000000000002",
+        u: 0.1,
+        v: 0.08,
+      },
+    },
+  ],
+  portals: [],
+  seam_anchor_pair_id: "00000000-0000-4000-8000-000000000001",
+  scope_reason_codes: [],
+  scope_reason_text: "",
+  worker_scope_observation: "annotatable",
+};
+
+const savedMedia = {
+  assignment_id: first.assignment_id,
+  expires_at: "2026-08-11T12:05:00+00:00",
+  unavailable_roles: [],
+  variants: [
+    {
+      coordinate_mapping: "normalized_identity",
+      height: 1024,
+      media_variant_id: "compressed-001",
+      role: "compressed",
+      url: "https://private.cos.test/compressed.jpg",
+      width: 2048,
+    },
+  ],
 };
 
 describe("AssignmentSwitcher", () => {
@@ -257,5 +307,313 @@ describe("AssignmentSwitcher", () => {
       "/api/worker/rework-requests/rework-001/accept",
       expect.objectContaining({ body: JSON.stringify({ tab_id: "tab-001" }), method: "POST" }),
     );
+  });
+
+  it("PAP-DRR-SC-017 PAP-DRR-SC-018 refreshes new rework on focus without accepting stale reads", async () => {
+    const submitted = { ...first, work_state: "submitted" };
+    const reviewed = {
+      ...submitted,
+      queue_state: "needs_revisit",
+      review_state: "changes_requested",
+    };
+    const rework = {
+      assignment_id: first.assignment_id,
+      due_at: "2026-08-11T12:00:00+00:00",
+      instruction: "Use your own evidence to submit an annotatable revision.",
+      request_id: "rework-focus-001",
+      status: "pending",
+    };
+    const foregroundReads: Array<{
+      payload: ReturnType<typeof deferred<{ assignments: object[] }>>;
+      signal: AbortSignal | null | undefined;
+    }> = [];
+    let assignmentReadCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/worker/batches") {
+        return Promise.resolve(
+          jsonResponse({ batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }] }),
+        );
+      }
+      if (url === "/api/worker/batches/batch-001/assignments") {
+        assignmentReadCount += 1;
+        if (assignmentReadCount === 1) {
+          return Promise.resolve(jsonResponse({ assignments: [submitted] }));
+        }
+        const payload = deferred<{ assignments: object[] }>();
+        foregroundReads.push({ payload, signal: init?.signal });
+        return Promise.resolve({ json: () => payload.promise, ok: true, status: 200 } as Response);
+      }
+      if (url === "/api/worker/rework-requests") {
+        return Promise.resolve(jsonResponse({ requests: [rework] }));
+      }
+      throw new Error(`unexpected ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AssignmentSwitcher tabId="tab-001" />);
+
+    expect(await screen.findByText("warehouse-a")).toBeInTheDocument();
+    expect(screen.queryByText(rework.instruction)).not.toBeInTheDocument();
+
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(foregroundReads).toHaveLength(1));
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(foregroundReads).toHaveLength(2));
+    expect(foregroundReads[0].signal?.aborted).toBe(true);
+
+    foregroundReads[1].payload.resolve({ assignments: [reviewed] });
+    expect(await screen.findByText(rework.instruction)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始返工 / Start rework" })).toBeInTheDocument();
+
+    await act(async () => {
+      foregroundReads[0].payload.resolve({ assignments: [submitted] });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(rework.instruction)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始返工 / Start rework" })).toBeInTheDocument();
+    const requestedUrls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(
+      requestedUrls.some(
+        (url) => url.includes("/draft") || url.endsWith("/media") || url.includes("/revisions"),
+      ),
+    ).toBe(false);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method !== undefined)).toBe(false);
+  });
+
+  it("PAP-DRR-SC-018 rejects an initial Assignment response that arrives after focus revalidation", async () => {
+    const submitted = { ...first, work_state: "submitted" };
+    const reviewed = {
+      ...submitted,
+      queue_state: "needs_revisit",
+      review_state: "changes_requested",
+    };
+    const rework = {
+      assignment_id: first.assignment_id,
+      due_at: "2026-08-11T12:00:00+00:00",
+      instruction: "The newest review instruction must remain visible.",
+      request_id: "rework-generation-001",
+      status: "pending",
+    };
+    const assignmentReads: Array<ReturnType<typeof deferred<{ assignments: object[] }>>> = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/worker/batches") {
+        return Promise.resolve(
+          jsonResponse({ batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }] }),
+        );
+      }
+      if (url === "/api/worker/batches/batch-001/assignments") {
+        const payload = deferred<{ assignments: object[] }>();
+        assignmentReads.push(payload);
+        return Promise.resolve({ json: () => payload.promise, ok: true, status: 200 } as Response);
+      }
+      if (url === "/api/worker/rework-requests") {
+        return Promise.resolve(jsonResponse({ requests: [rework] }));
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AssignmentSwitcher tabId="tab-001" />);
+
+    await waitFor(() => expect(assignmentReads).toHaveLength(1));
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(assignmentReads).toHaveLength(2));
+
+    assignmentReads[1].resolve({ assignments: [reviewed] });
+    expect(await screen.findByText(rework.instruction)).toBeInTheDocument();
+    await act(async () => {
+      assignmentReads[0].resolve({ assignments: [submitted] });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(rework.instruction)).toBeInTheDocument();
+    expect(screen.queryByText("正在读取 Assignment…")).not.toBeInTheDocument();
+  });
+
+  it("PAP-DRR-SC-018 rejects a cancelled ReworkRequest response after feedback disappears", async () => {
+    const reviewed = {
+      ...first,
+      queue_state: "needs_revisit",
+      review_state: "changes_requested",
+      work_state: "submitted",
+    };
+    const submitted = { ...first, work_state: "submitted" };
+    const rework = {
+      assignment_id: first.assignment_id,
+      due_at: "2026-08-11T12:00:00+00:00",
+      instruction: "This cancelled response must not appear.",
+      request_id: "rework-stale-001",
+      status: "pending",
+    };
+    const staleRework = deferred<{ requests: object[] }>();
+    let staleReworkSignal: AbortSignal | null | undefined;
+    let assignmentReadCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/worker/batches") {
+        return Promise.resolve(
+          jsonResponse({ batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }] }),
+        );
+      }
+      if (url === "/api/worker/batches/batch-001/assignments") {
+        assignmentReadCount += 1;
+        return Promise.resolve(
+          jsonResponse({ assignments: [assignmentReadCount === 1 ? reviewed : submitted] }),
+        );
+      }
+      if (url === "/api/worker/rework-requests") {
+        staleReworkSignal = init?.signal;
+        return Promise.resolve({
+          json: () => staleRework.promise,
+          ok: true,
+          status: 200,
+        } as Response);
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AssignmentSwitcher tabId="tab-001" />);
+
+    await waitFor(() => expect(staleReworkSignal).toBeDefined());
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(assignmentReadCount).toBe(2));
+    await waitFor(() => expect(staleReworkSignal?.aborted).toBe(true));
+    await act(async () => {
+      staleRework.resolve({ requests: [rework] });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(rework.instruction)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "开始返工 / Start rework" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("PAP-DRR-SC-018 rejects a pending focus response after explicit list retry", async () => {
+    const reviewed = {
+      ...first,
+      queue_state: "needs_revisit",
+      review_state: "changes_requested",
+      work_state: "submitted",
+    };
+    const staleSubmitted = { ...first, work_state: "submitted" };
+    const rework = {
+      assignment_id: first.assignment_id,
+      due_at: "2026-08-11T12:00:00+00:00",
+      instruction: "The explicit retry result must remain visible.",
+      request_id: "rework-retry-001",
+      status: "pending",
+    };
+    const foregroundRead = deferred<{ assignments: object[] }>();
+    const initialReworkFailure = deferred<Response>();
+    let foregroundSignal: AbortSignal | null | undefined;
+    let assignmentReadCount = 0;
+    let reworkReadCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/worker/batches") {
+        return Promise.resolve(
+          jsonResponse({ batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }] }),
+        );
+      }
+      if (url === "/api/worker/batches/batch-001/assignments") {
+        assignmentReadCount += 1;
+        if (assignmentReadCount === 2) {
+          foregroundSignal = init?.signal;
+          return Promise.resolve({
+            json: () => foregroundRead.promise,
+            ok: true,
+            status: 200,
+          } as Response);
+        }
+        return Promise.resolve(jsonResponse({ assignments: [reviewed] }));
+      }
+      if (url === "/api/worker/rework-requests") {
+        reworkReadCount += 1;
+        return reworkReadCount === 1
+          ? initialReworkFailure.promise
+          : Promise.resolve(jsonResponse({ requests: [rework] }));
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AssignmentSwitcher tabId="tab-001" />);
+
+    await waitFor(() => expect(reworkReadCount).toBe(1));
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(foregroundSignal).toBeDefined());
+    initialReworkFailure.resolve(jsonResponse({ error: { code: "temporarily_unavailable" } }, 503));
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取或更新 Assignment");
+    fireEvent.click(screen.getByRole("button", { name: "重试读取" }));
+
+    await waitFor(() => expect(foregroundSignal?.aborted).toBe(true));
+    expect(await screen.findByText(rework.instruction)).toBeInTheDocument();
+    await act(async () => {
+      foregroundRead.resolve({ assignments: [staleSubmitted] });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(rework.instruction)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始返工 / Start rework" })).toBeInTheDocument();
+  });
+
+  it("PAP-DRR-SC-019 leaves an open Assignment editor untouched on focus", async () => {
+    const editable = {
+      ...first,
+      task: { ...first.task, active_time_rule_version: "active-time-v1" },
+    };
+    let assignmentReadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/worker/batches") {
+        return jsonResponse({
+          batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }],
+        });
+      }
+      if (url === "/api/worker/batches/batch-001/assignments") {
+        assignmentReadCount += 1;
+        return jsonResponse({ assignments: [editable] });
+      }
+      if (url === "/api/worker/assignments/assignment-001/open") {
+        return jsonResponse({ ...editable, work_state: "in_progress" });
+      }
+      if (url.endsWith("/media")) {
+        return jsonResponse(savedMedia);
+      }
+      if (url.includes("/draft")) {
+        return jsonResponse({
+          draft_cycle_id: "cycle-focus-001",
+          draft_id: "draft-focus-001",
+          draft_version: 0,
+          state: savedState,
+          state_sha: "a".repeat(64),
+        });
+      }
+      throw new Error(`unexpected ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AssignmentSwitcher tabId="tab-001" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "打开 warehouse-a" }));
+    expect(await screen.findByText("当前 Assignment：warehouse-a")).toBeInTheDocument();
+    fireEvent.load(await screen.findByAltText("当前任务全景图（压缩）"));
+    expect(await screen.findByText("已保存")).toBeInTheDocument();
+    expect(screen.getByLabelText("界面语言")).toBeEnabled();
+    expect(screen.getByRole("spinbutton", { name: "第 1 对顶点水平坐标" })).toHaveValue(0.1);
+
+    await act(async () => {
+      fireEvent(window, new Event("focus"));
+      await Promise.resolve();
+    });
+
+    expect(assignmentReadCount).toBe(1);
+    expect(screen.getByText("当前 Assignment：warehouse-a")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "第 1 对顶点水平坐标" })).toHaveValue(0.1);
   });
 });

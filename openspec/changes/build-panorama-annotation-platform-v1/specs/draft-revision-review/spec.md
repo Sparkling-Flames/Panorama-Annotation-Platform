@@ -73,6 +73,21 @@ Assignment 的每个 DraftCycle SHALL 至多存在一个服务器端 CurrentDraf
 - **WHEN** ReworkRequest 超过期限仍未提交
 - **THEN** 系统标记 `rework_overdue` 并保留原始证据，不伪造完成 Revision
 
+### Requirement: 工人在安全前台刷新点读取返工通知
+系统 SHALL 在在线、持有可写工作区且当前没有已选择 Assignment 编辑器、进行中操作或阻断表单的工人窗口获得 `focus` 时，重新读取该工人有权访问的当前批次 Assignment；新结果包含复核反馈时再读取其 ReworkRequest。系统不得轮询、推送、自动接受返工、修改 CurrentDraft/Revision，或因该刷新卸载当前编辑器。被取消或已过期的读取响应不得覆盖较新的列表结果。
+
+#### Scenario: 工人切回窗口后看到新建返工
+- **WHEN** 管理员已为该工人创建 Scope-only ReworkRequest，且工人当前处于无编辑器的安全任务列表状态并切回窗口
+- **THEN** 系统重新读取其当前批次 Assignment 和本人 ReworkRequest，并展示服务端指导与返工入口，无需页面 reload，且不读取 Draft、Revision 或媒体
+
+#### Scenario: 旧前台读取晚到
+- **WHEN** 连续两次前台刷新中第一次读取已被取消，而第二次已获得含返工通知的新列表
+- **THEN** 第一次晚到响应不得隐藏、替换或回退第二次结果
+
+#### Scenario: 编辑器打开时保持本地编辑状态
+- **WHEN** 工人正在打开某个 Assignment 编辑器
+- **THEN** window focus 不得触发前台列表刷新、卸载编辑器、替换本地 Draft 或自动接受返工
+
 ### Requirement: 反馈暴露与独立证据分离
 系统 MUST 保存 `initial_submission_revision`、`review_feedback_exposed_at`、feedback-exposed Revision 和最终 AdjudicatedRevision 的关系。用于独立共识和初始能力画像时，每名工人最多使用最新一份未暴露外部反馈的有效 Revision；反馈后返工只能进入返工表现和交付分析。
 
