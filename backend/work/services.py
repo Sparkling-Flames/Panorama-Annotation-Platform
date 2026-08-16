@@ -1009,15 +1009,14 @@ def _latest_delivery_selection(task: Task) -> TaskDeliverySelection | None:
     )
 
 
-@transaction.atomic
-def adjudicate_task(
+def _create_adjudicated_revision(
     *,
     actor: User,
     task_id: UUID,
     state: object,
     source_revision_ids: list[UUID],
     reason: str,
-) -> tuple[AdjudicatedRevision, TaskDeliverySelection]:
+) -> tuple[AdjudicatedRevision, Task]:
     _require_admin(actor)
     clean_reason = _clean_required_reason(reason, code="adjudication_reason_required")
     if not source_revision_ids or len(set(source_revision_ids)) != len(source_revision_ids):
@@ -1064,13 +1063,6 @@ def adjudicate_task(
         reason=clean_reason,
         rule_version=ADJUDICATION_RULE_VERSION,
     )
-    selection = TaskDeliverySelection.objects.create(
-        task=task,
-        actor=actor,
-        adjudicated_revision=adjudication,
-        reason=clean_reason,
-        supersedes=_latest_delivery_selection(task),
-    )
     correlation_id = uuid4()
     for source in sources_by_id.values():
         record_audit_event(
@@ -1087,7 +1079,91 @@ def adjudicate_task(
                 "task_id": str(task.task_id),
             },
         )
+    return adjudication, task
+
+
+@transaction.atomic
+def adjudicate_task(
+    *,
+    actor: User,
+    task_id: UUID,
+    state: object,
+    source_revision_ids: list[UUID],
+    reason: str,
+) -> tuple[AdjudicatedRevision, TaskDeliverySelection]:
+    adjudication, task = _create_adjudicated_revision(
+        actor=actor,
+        task_id=task_id,
+        state=state,
+        source_revision_ids=source_revision_ids,
+        reason=reason,
+    )
+    selection = TaskDeliverySelection.objects.create(
+        task=task,
+        actor=actor,
+        adjudicated_revision=adjudication,
+        reason=adjudication.reason,
+        supersedes=_latest_delivery_selection(task),
+    )
     return adjudication, selection
+
+
+@transaction.atomic
+def create_scope_rework_flow(
+    *,
+    actor: User,
+    initial_revision_id: UUID,
+    reason: str,
+    instruction: str,
+    due_at: datetime,
+) -> tuple[ReviewRecord, AdjudicatedRevision, ReworkRequest]:
+    """Create the narrow scope-only review flow without accepting client geometry."""
+    _require_admin(actor)
+    revision = (
+        AnnotationRevision.objects.select_related("task")
+        .filter(revision_id=initial_revision_id)
+        .first()
+    )
+    if revision is None:
+        raise ResourceNotFound
+    if revision.state.get("worker_scope_observation") not in {
+        "needs_scope_review",
+        "representation_oos",
+    }:
+        raise ValidationError(
+            "The revision is not eligible for scope rework.",
+            code="scope_rework_revision_ineligible",
+        )
+
+    adjudicated_state = deepcopy(revision.state)
+    adjudicated_state.update(
+        {
+            "scope_reason_codes": [],
+            "scope_reason_text": "",
+            "worker_scope_observation": "annotatable",
+        }
+    )
+    review = review_revision(
+        actor=actor,
+        revision_id=revision.revision_id,
+        outcome=ReviewRecord.Outcome.CHANGES_REQUESTED,
+        reason=reason,
+    )
+    adjudication, _task = _create_adjudicated_revision(
+        actor=actor,
+        task_id=revision.task_id,
+        state=adjudicated_state,
+        source_revision_ids=[revision.revision_id],
+        reason=reason,
+    )
+    rework = create_rework_request(
+        actor=actor,
+        initial_revision_id=revision.revision_id,
+        source_adjudication_id=adjudication.adjudication_id,
+        instruction=instruction,
+        due_at=due_at,
+    )
+    return review, adjudication, rework
 
 
 @transaction.atomic

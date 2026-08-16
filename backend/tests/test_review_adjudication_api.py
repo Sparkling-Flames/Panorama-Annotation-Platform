@@ -562,3 +562,169 @@ def test_pap_drr_sc_013_pap_drr_sc_010_pap_drr_sc_011_scope_rework_lifecycle() -
     assert [item["revision_id"] for item in manifest["inputs"]] == [
         str(source_revision.revision_id)
     ]
+
+
+@pytest.mark.parametrize("existing_delivery", [False, True])
+def test_pap_drr_sc_016_scope_only_rework_action_is_atomic_and_geometry_opaque(
+    existing_delivery: bool,
+) -> None:
+    suffix = "with-delivery" if existing_delivery else "without-delivery"
+    task = published_task(f"scope-rework-action-{suffix}")
+    source_state = complete_state()
+    pair_id = "00000000-0000-4000-8000-000000000001"
+    source_state.update(
+        {
+            "geometry_attempt_status": "partial",
+            "portals": [
+                {
+                    "evidence_status": "direct_visible",
+                    "geometry": {
+                        "bottom_left": {"u": 0.2, "v": 0.8},
+                        "bottom_right": {"u": 0.3, "v": 0.8},
+                        "top_left": {"u": 0.2, "v": 0.2},
+                        "top_right": {"u": 0.3, "v": 0.2},
+                    },
+                    "host_edge_ref": pair_id,
+                    "kind": "door",
+                    "portal_id": "00000000-0000-4000-8000-000000000004",
+                }
+            ],
+            "scope_reason_codes": ["insufficient_evidence"],
+            "worker_scope_observation": "representation_oos",
+        }
+    )
+    assignment, source_revision, worker_client, _ = submit_assignment(
+        assigned_worker=worker(f"scope-rework-action-worker-{suffix}"),
+        task=task,
+        state=source_state,
+    )
+    administrator, client = admin_client(f"scope-rework-action-admin-{suffix}")
+    endpoint = f"/api/admin/revisions/{source_revision.revision_id}/scope-rework"
+    due_at = (timezone.now() + timedelta(days=2)).isoformat()
+
+    worker_attempt = request_json(
+        worker_client,
+        "post",
+        endpoint,
+        {
+            "due_at": due_at,
+            "instruction": "Rework only from your own observations.",
+            "reason": "The final scope is annotatable.",
+        },
+    )
+    assert worker_attempt.status_code == 403
+    assert worker_attempt.json() == {"error": {"code": "admin_required"}}
+
+    geometry_injection = request_json(
+        client,
+        "post",
+        endpoint,
+        {
+            "due_at": due_at,
+            "instruction": "Rework only from your own observations.",
+            "reason": "The final scope is annotatable.",
+            "state": complete_state(),
+        },
+    )
+    assert geometry_injection.status_code == 400
+    assert geometry_injection.json() == {"error": {"code": "invalid_scope_rework"}}
+
+    invalid_due = request_json(
+        client,
+        "post",
+        endpoint,
+        {
+            "due_at": (timezone.now() - timedelta(minutes=1)).isoformat(),
+            "instruction": "Rework only from your own observations.",
+            "reason": "The final scope is annotatable.",
+        },
+    )
+    assert invalid_due.status_code == 400
+    assert invalid_due.json() == {"error": {"code": "rework_due_invalid"}}
+    assert not ReviewRecord.objects.filter(revision=source_revision).exists()
+    assert not AdjudicatedRevision.objects.filter(task=task).exists()
+    assert not TaskDeliverySelection.objects.filter(task=task).exists()
+    assert not ReworkRequest.objects.filter(initial_submission_revision=source_revision).exists()
+
+    existing_selection: TaskDeliverySelection | None = None
+    if existing_delivery:
+        _, delivery_revision, _, _ = submit_assignment(
+            assigned_worker=worker("scope-rework-selected-worker"),
+            task=task,
+        )
+        accepted = request_json(
+            client,
+            "post",
+            f"/api/admin/revisions/{delivery_revision.revision_id}/review",
+            {"outcome": "accepted", "reason": ""},
+        )
+        assert accepted.status_code == 201
+        selected = request_json(
+            client,
+            "post",
+            f"/api/admin/tasks/{task.task_id}/delivery-selection",
+            {
+                "reason": "Keep the accepted independent delivery.",
+                "worker_revision_id": str(delivery_revision.revision_id),
+            },
+        )
+        assert selected.status_code == 201
+        existing_selection = TaskDeliverySelection.objects.get(
+            selection_id=selected.json()["selection_id"]
+        )
+
+    created = request_json(
+        client,
+        "post",
+        endpoint,
+        {
+            "due_at": due_at,
+            "instruction": "Rework only from your own observations.",
+            "reason": "The final scope is annotatable.",
+        },
+    )
+
+    assert created.status_code == 201
+    assert set(created.json()) == {
+        "adjudication_id",
+        "assignment_id",
+        "due_at",
+        "instruction",
+        "request_id",
+        "review_id",
+        "status",
+    }
+    review = ReviewRecord.objects.get(review_id=created.json()["review_id"])
+    adjudication = AdjudicatedRevision.objects.get(
+        adjudication_id=created.json()["adjudication_id"]
+    )
+    rework = ReworkRequest.objects.get(request_id=created.json()["request_id"])
+    expected_state = deepcopy(source_revision.state)
+    expected_state.update(
+        {
+            "scope_reason_codes": [],
+            "scope_reason_text": "",
+            "worker_scope_observation": "annotatable",
+        }
+    )
+    assert review.outcome == ReviewRecord.Outcome.CHANGES_REQUESTED
+    assert review.reason == "The final scope is annotatable."
+    assert adjudication.state == expected_state
+    assert adjudication.state["pairs"] == source_revision.state["pairs"]
+    assert adjudication.state["portals"] == source_revision.state["portals"]
+    assert adjudication.source_revision_ids == [str(source_revision.revision_id)]
+    assert rework.initial_submission_revision == source_revision
+    assert rework.source_adjudication == adjudication
+    selections = list(TaskDeliverySelection.objects.filter(task=task))
+    assert selections == ([] if existing_selection is None else [existing_selection])
+    if existing_selection is not None:
+        assert not TaskDeliverySelection.objects.filter(supersedes=existing_selection).exists()
+    source_revision.refresh_from_db()
+    assert source_revision.state == source_state
+    assignment.refresh_from_db()
+    assert assignment.review_state == Assignment.ReviewState.CHANGES_REQUESTED
+    assert AuditEvent.objects.filter(
+        actor=administrator,
+        action="rework.created",
+        target_id=str(rework.request_id),
+    ).exists()

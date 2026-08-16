@@ -62,6 +62,7 @@ from .services import (
     block_owned_assignment,
     create_guidance_event,
     create_rework_request,
+    create_scope_rework_flow,
     create_work_batch,
     dispose_blocked_assignment,
     freeze_work_batch,
@@ -1400,3 +1401,51 @@ def admin_revision_rework_request_view(request: HttpRequest, revision_id: UUID) 
         status = 400 if code in {"rework_due_invalid", "rework_instruction_required"} else 409
         return error_response(code, status=status)
     return JsonResponse(rework_request_payload(rework), status=201)
+
+
+@require_POST
+def admin_revision_scope_rework_view(request: HttpRequest, revision_id: UUID) -> JsonResponse:
+    actor = require_admin(request)
+    if isinstance(actor, JsonResponse):
+        return actor
+    payload = request_json(request)
+    if (
+        payload is None
+        or set(payload) != {"due_at", "instruction", "reason"}
+        or not isinstance(payload.get("due_at"), str)
+        or not isinstance(payload.get("instruction"), str)
+        or not isinstance(payload.get("reason"), str)
+    ):
+        return error_response("invalid_scope_rework", status=400)
+    due_at = parse_datetime(payload["due_at"])
+    if due_at is None:
+        return error_response("invalid_scope_rework", status=400)
+    try:
+        review, adjudication, rework = create_scope_rework_flow(
+            actor=actor,
+            initial_revision_id=revision_id,
+            reason=payload["reason"],
+            instruction=payload["instruction"],
+            due_at=due_at,
+        )
+    except ResourceNotFound:
+        return error_response(ResourceNotFound.code, status=404)
+    except AnnotationStateError as error:
+        return annotation_error_response(error)
+    except ValidationError as error:
+        code = error.code or "scope_rework_conflict"
+        status = (
+            400
+            if code == "rework_due_invalid"
+            or code.startswith(("adjudication_reason_", "review_reason_", "rework_instruction_"))
+            else 409
+        )
+        return error_response(code, status=status)
+    return JsonResponse(
+        {
+            **rework_request_payload(rework),
+            "adjudication_id": str(adjudication.adjudication_id),
+            "review_id": str(review.review_id),
+        },
+        status=201,
+    )

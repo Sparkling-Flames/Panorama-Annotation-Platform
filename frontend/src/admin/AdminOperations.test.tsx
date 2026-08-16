@@ -117,7 +117,9 @@ describe("AdminOperations", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("consensus_unresolved")).toBeInTheDocument();
     expect(screen.getByText("geometry_multimodal")).toBeInTheDocument();
-    expect(screen.getByText("revision-001, revision-002")).toBeInTheDocument();
+    expect(screen.getByText("revision-001")).toBeInTheDocument();
+    expect(screen.getByText("revision-002")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "复核 Scope / Review scope" })).toHaveLength(2);
     expect(screen.queryByText(/tier|处罚|punishment/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "刷新 / Refresh" }));

@@ -933,6 +933,15 @@
               "test_files": ["backend/tests/test_review_adjudication_api.py"]
             },
             {
+              "title": "管理员从平台创建 Scope-only 返工",
+              "test_ids": ["PAP-DRR-SC-016"],
+              "coverage_status": "implemented",
+              "test_files": [
+                "backend/tests/test_review_adjudication_api.py",
+                "frontend/src/admin/ScopeReworkPanel.test.tsx"
+              ]
+            },
+            {
               "title": "返工逾期",
               "test_ids": ["PAP-DRR-SC-010"],
               "coverage_status": "implemented",
