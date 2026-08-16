@@ -5,12 +5,45 @@ import { apiFetch } from "../api";
 const IMPORTER_VERSION = "panorama-layout-json-v1";
 
 const ERROR_MESSAGES: Record<string, string> = {
+  cos_unavailable:
+    "媒体目录暂不可用，请稍后重试。 / Media catalog is temporarily unavailable; retry later.",
+  image_unavailable:
+    "预览媒体不可用，请核对已发布媒体。 / Preview media is unavailable; check published media.",
   invalid_semi_task_request: "Semi Task 媒体选择无效。 / Invalid Semi Task media selection.",
+  invalid_prediction_import:
+    "预测导入请求无效，请核对 Asset、模型信息和 JSON。 / Invalid prediction import; check the Asset, model details, and JSON.",
+  invalid_prediction_publication:
+    "冻结请求无效，请重新生成预览。 / Invalid freeze request; create the preview again.",
+  media_candidate_integrity_conflict:
+    "媒体完整性冲突，请重新登记不可变媒体版本。 / Media integrity conflict; register an immutable media version again.",
+  prediction_importer_unsupported:
+    "导入器版本不受支持，请使用平台注册的版本。 / Importer version is unsupported; use a registered version.",
+  prediction_checkpoint_invalid:
+    "Checkpoint SHA-256 无效，请核对冻结模型文件。 / Checkpoint SHA-256 is invalid; verify the frozen model file.",
+  prediction_config_invalid:
+    "推理配置无效，请重新导出本地预测。 / Inference configuration is invalid; export the local prediction again.",
+  prediction_coordinate_mapping_invalid:
+    "预测坐标映射不兼容，请使用规范化等距柱状图。 / Prediction coordinate mapping is incompatible; use a normalized equirectangular panorama.",
+  prediction_output_invalid:
+    "预测 JSON 无法解析或不符合合同，请修正后重新预览。 / Prediction JSON is invalid; correct it and preview again.",
+  prediction_output_too_large:
+    "预测 JSON 过大，请缩小后重试。 / Prediction JSON is too large; reduce it and retry.",
+  prediction_provenance_invalid:
+    "预测来源信息不完整，请补全模型和导入来源。 / Prediction provenance is incomplete; provide model and import source details.",
+  prediction_preview_conflict:
+    "预览已变化或失效，请重新预览后冻结。 / Preview changed or expired; preview again before freezing.",
+  prediction_preview_expired: "预览已过期，请重新预览。 / Preview expired; create a new preview.",
+  prediction_state_invalid:
+    "预测状态不符合 Semi 标注合同，请修正 JSON。 / Prediction state does not satisfy the Semi annotation contract; correct the JSON.",
   resource_not_found:
     "所选 Artifact 或媒体不存在。 / The selected artifact or media was not found.",
   semi_task_conflict: "Semi Task 无法发布。 / The Semi Task could not be published.",
   task_media_mismatch: "所选媒体不属于该 Artifact 的 Asset。 / Media belongs to another Asset.",
   task_media_unpublished: "所选媒体尚未发布。 / Selected media is not published.",
+  semi_task_previous_round_invalid:
+    "上一标注轮次与当前冻结 Artifact 或媒体不匹配，请从当前轮次继续。 / The previous annotation round does not match this frozen Artifact or media; continue from the current round.",
+  semi_prediction_not_ready:
+    "冻结 PredictionArtifact 已不可用，请重新预览并冻结。 / The frozen PredictionArtifact is unavailable; preview and freeze again.",
 };
 
 type Preview = {
@@ -43,6 +76,7 @@ type Artifact = {
 
 type SemiTask = {
   mode: "semi";
+  previous_round_task_id: string | null;
   reused: boolean;
   status: "published";
   task_id: string;
@@ -118,7 +152,7 @@ export function PredictionImportWizard() {
     }
   }
 
-  async function createSemiTask() {
+  async function createSemiTask(previousRoundTaskId?: string) {
     if (artifact === null || preview === null || busy) return;
     setBusy(true);
     setError("");
@@ -126,6 +160,9 @@ export function PredictionImportWizard() {
       const response = await apiFetch(`/api/admin/predictions/${artifact.artifact_id}/semi-tasks`, {
         body: JSON.stringify({
           media_variant_ids: preview.media_variants.map((variant) => variant.media_variant_id),
+          ...(previousRoundTaskId === undefined
+            ? {}
+            : { previous_round_task_id: previousRoundTaskId }),
         }),
         method: "POST",
       });
@@ -252,6 +289,15 @@ export function PredictionImportWizard() {
           >
             创建并发布 Semi Task / Create and publish Semi Task
           </button>
+          {semiTask ? (
+            <button
+              disabled={busy}
+              onClick={() => void createSemiTask(semiTask.task_id)}
+              type="button"
+            >
+              创建下一标注轮次 / Create next annotation round
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -261,6 +307,9 @@ export function PredictionImportWizard() {
             ? "已复用现有 Semi Task / Reused existing Semi Task"
             : "已创建并发布 Semi Task / Created and published Semi Task"}{" "}
           {semiTask.task_id} · {semiTask.status}
+          {semiTask.previous_round_task_id ? (
+            <> · Previous round: {semiTask.previous_round_task_id}</>
+          ) : null}
         </p>
       ) : null}
     </section>

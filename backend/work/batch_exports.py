@@ -597,9 +597,14 @@ def process_next_batch_export(*, worker_id: str) -> BatchExportSnapshot | None:
         return None
     try:
         return _complete_batch_export(export_id=snapshot.export_id, worker_id=worker_id)
+    except BatchExportSnapshot.DoesNotExist:
+        return None
     except Exception as error:
-        return _fail_batch_export(
-            export_id=snapshot.export_id,
-            worker_id=worker_id,
-            error=error,
-        )
+        try:
+            return _fail_batch_export(
+                export_id=snapshot.export_id,
+                worker_id=worker_id,
+                error=error,
+            )
+        except BatchExportSnapshot.DoesNotExist:
+            return None

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from activity.services import derive_assignment_activity
 from django.db import DatabaseError, transaction
 from django.test import Client
 from django.utils import timezone
@@ -548,9 +549,10 @@ def test_pap_drr_sc_013_pap_drr_sc_010_pap_drr_sc_011_scope_rework_lifecycle() -
     assert rework.completed_revision == feedback_revision
     assert rework.exposed_at is not None
     assert AnnotationRevision.objects.filter(pk=source_revision.pk).exists()
-    activity = worker_client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    ).json()
+    activity = derive_assignment_activity(
+        actor=assignment.worker,
+        assignment_id=assignment.assignment_id,
+    )
     assert activity["rework_ms"] == 5_000
     assert activity["revision_ms"] == 0
 

@@ -289,19 +289,19 @@ describe("AssignmentWorkspace", () => {
       "informational",
     );
     fireEvent.click(screen.getByRole("button", { name: "添加角点对" }));
-    expect(screen.getByRole("button", { name: "提交 Revision" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit Revision" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "取消添加" }));
-    expect(screen.getByRole("button", { name: "提交 Revision" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Submit Revision" })).toBeEnabled();
 
     fireEvent.change(screen.getByRole("spinbutton", { name: "第 1 对顶点水平坐标" }), {
       target: { value: "0.25" },
     });
-    expect(await screen.findByText("未保存")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("已保存")).toBeInTheDocument(), { timeout: 2000 });
+    expect(await screen.findByText("Unsaved")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument(), { timeout: 2000 });
     expect(safe).toHaveBeenCalledWith(false);
     await waitFor(() => expect(safe).toHaveBeenLastCalledWith(true));
 
-    fireEvent.click(screen.getByRole("button", { name: "提交 Revision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Revision" }));
     expect(await screen.findByText(/revision-001/)).toBeInTheDocument();
     const submitCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/submit"));
     const submitBody = JSON.parse(String((submitCall?.[1] as RequestInit).body)) as Record<
@@ -580,6 +580,170 @@ describe("AssignmentWorkspace", () => {
     fireEvent.load(await screen.findByAltText("当前任务全景图（压缩）"));
     await waitFor(() =>
       expect(screen.getByRole("spinbutton", { name: "第 1 对顶点水平坐标" })).toHaveValue(0.4),
+    );
+  });
+
+  it("uses English copy for Draft conflict recovery", async () => {
+    document.cookie = "csrftoken=workspace-test-token; Path=/";
+    const serverState = structuredClone(state);
+    serverState.pairs[0].top.u = 0.4;
+    let draftReads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/media")) return jsonResponse(media);
+        if (url.includes("/draft") && init?.method === "PUT") {
+          return jsonResponse(
+            {
+              error: {
+                code: "draft_conflict",
+                server_draft_version: 1,
+                server_updated_at: "2026-08-10T12:00:00Z",
+              },
+            },
+            409,
+          );
+        }
+        if (url.includes("/draft")) {
+          draftReads += 1;
+          return jsonResponse(draft(draftReads === 1 ? state : serverState, draftReads - 1));
+        }
+        throw new Error(`unexpected ${url}`);
+      }),
+    );
+
+    render(
+      <AssignmentWorkspace
+        assignmentId="assignment-001"
+        locale="en"
+        onSafeToSwitchChange={vi.fn()}
+        tabId="tab-001"
+      />,
+    );
+    fireEvent.load(await screen.findByAltText("当前任务全景图（压缩）"));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "第 1 对顶点水平坐标" }), {
+      target: { value: "0.25" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Draft conflict: local changes did not overwrite the server Draft.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Diagnostic code: draft_conflict");
+    fireEvent.click(screen.getByRole("button", { name: "Reload server Draft" }));
+    await waitFor(() => expect(draftReads).toBe(2));
+  });
+
+  it("shows only Draft conflict recovery when submit receives a Draft conflict", async () => {
+    document.cookie = "csrftoken=workspace-test-token; Path=/";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/media")) return jsonResponse(media);
+        if (url.includes("/draft")) return jsonResponse(draft());
+        if (url.endsWith("/submit"))
+          return jsonResponse({ error: { code: "draft_conflict" } }, 409);
+        throw new Error(`unexpected ${url}`);
+      }),
+    );
+
+    render(
+      <AssignmentWorkspace
+        assignmentId="assignment-001"
+        locale="en"
+        onSafeToSwitchChange={vi.fn()}
+        tabId="tab-001"
+      />,
+    );
+    fireEvent.load(await screen.findByAltText("当前任务全景图（压缩）"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Revision" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Draft conflict: local changes did not overwrite the server Draft.",
+    );
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByText("Could not submit Revision.")).not.toBeInTheDocument();
+  });
+
+  it("uses English copy for Draft save retry and Revision submission statuses", async () => {
+    document.cookie = "csrftoken=workspace-test-token; Path=/";
+    const portalId = "00000000-0000-4000-8000-000000000010";
+    let saveAttempts = 0;
+    let submitAttempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/media")) return jsonResponse(media);
+        if (url.includes("/draft") && init?.method === "PUT") {
+          saveAttempts += 1;
+          if (saveAttempts === 1) {
+            return jsonResponse(
+              {
+                error: {
+                  code: "annotation_portal_host_edge_invalid",
+                  field: "portals.host_edge_ref",
+                  pair_id: state.pairs[0].pair_id,
+                  point_id: state.pairs[0].top.point_id,
+                  portal_id: portalId,
+                },
+              },
+              400,
+            );
+          }
+          return jsonResponse(draft(state, 1, "b".repeat(64), "cycle-001"));
+        }
+        if (url.includes("/draft"))
+          return jsonResponse(draft(state, 0, "a".repeat(64), "cycle-001"));
+        if (url.endsWith("/submit")) {
+          submitAttempts += 1;
+          return submitAttempts === 1
+            ? jsonResponse({ error: { code: "submission_idempotency_conflict" } }, 409)
+            : jsonResponse(
+                {
+                  revision_id: "revision-english-001",
+                  revision_no: 1,
+                  state_sha: "b".repeat(64),
+                  submitted_at: "2026-08-10T00:00:00Z",
+                },
+                201,
+              );
+        }
+        throw new Error(`unexpected ${url}`);
+      }),
+    );
+
+    render(
+      <AssignmentWorkspace
+        assignmentId="assignment-001"
+        locale="en"
+        onSafeToSwitchChange={vi.fn()}
+        tabId="tab-001"
+      />,
+    );
+    fireEvent.load(await screen.findByAltText("当前任务全景图（压缩）"));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "第 1 对顶点水平坐标" }), {
+      target: { value: "0.25" },
+    });
+
+    const saveAlert = await screen.findByRole("alert");
+    expect(saveAlert).toHaveTextContent("Could not save Draft.");
+    expect(saveAlert).toHaveTextContent("Diagnostic code: annotation_portal_host_edge_invalid");
+    expect(saveAlert).toHaveTextContent("Field: portals.host_edge_ref");
+    expect(saveAlert).toHaveTextContent(`Pair: ${state.pairs[0].pair_id}`);
+    expect(saveAlert).toHaveTextContent(`Point: ${state.pairs[0].top.point_id}`);
+    expect(saveAlert).toHaveTextContent(`Portal: ${portalId}`);
+    fireEvent.click(screen.getByRole("button", { name: "Retry saving" }));
+    expect(await screen.findByText("Saved", { selector: "p[role='status']" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Revision" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Reload the Assignment, then submit again.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Diagnostic code: submission_idempotency_conflict",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit Revision" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Revision 1 submitted: revision-english-001",
     );
   });
 

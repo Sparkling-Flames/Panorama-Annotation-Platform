@@ -66,6 +66,57 @@ def logged_in(worker_user: User) -> Client:
     return client
 
 
+def test_worker_must_accept_current_notice_before_reading_production_resources() -> None:
+    assigned_worker = worker("notice-gated-worker")
+    batch = create_work_batch(name="Notice-gated production batch")
+    assignment = assign_task(
+        batch=batch,
+        task=published_task("notice-gated-production"),
+        worker=assigned_worker,
+    )
+    client = Client()
+    client.force_login(assigned_worker)
+
+    protected_responses = (
+        client.get("/api/worker/batches"),
+        client.get(f"/api/worker/batches/{batch.batch_id}/assignments"),
+        client.get(f"/api/worker/assignments/{assignment.assignment_id}"),
+        client.get("/api/worker/rework-requests"),
+        client.get("/api/worker/guidance-events"),
+        post_json(
+            client,
+            f"/api/worker/assignments/{assignment.assignment_id}/assist-candidate",
+            {"input_state_sha": "a" * 64},
+        ),
+    )
+
+    assert all(response.status_code == 409 for response in protected_responses)
+    assert all(
+        response.json() == {"error": {"code": "notice_acceptance_required"}}
+        for response in protected_responses
+    )
+
+    notice = client.get("/api/privacy/notice")
+    accepted = post_json(
+        client,
+        "/api/privacy/notice/accept",
+        {"notice_version": notice.json()["notice_version"]},
+    )
+    batches = client.get("/api/worker/batches")
+
+    assert notice.status_code == 200
+    assert accepted.status_code == 201
+    assert batches.status_code == 200
+    assert batches.json()["batches"] == [
+        {
+            "batch_id": str(batch.batch_id),
+            "name": batch.name,
+            "status": "open",
+            "worker_complete": False,
+        }
+    ]
+
+
 def acquire_workspace(client: Client, *, tab_id: str, takeover: bool = False) -> None:
     response = client.post(
         "/api/workspace/acquire",

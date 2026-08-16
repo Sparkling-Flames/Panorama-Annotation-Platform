@@ -55,6 +55,24 @@ function assignmentLabel(assignment: Assignment): string {
   return assignment.task.external_task_key || assignment.task.task_id;
 }
 
+function assignmentStateLabel(
+  locale: SupportedLocale,
+  state: Assignment["queue_state"] | Assignment["work_state"],
+): string {
+  if (locale !== "en") return state;
+  const labels: Record<Assignment["queue_state"] | Assignment["work_state"], string> = {
+    assigned: "Assigned",
+    blocked: "Blocked",
+    deferred: "Deferred",
+    in_progress: "In progress",
+    needs_revisit: "Needs revisit",
+    ready: "Ready",
+    revoked: "Revoked",
+    submitted: "Submitted",
+  };
+  return labels[state];
+}
+
 function nextOrderedAssignment(assignments: Assignment[], current: Assignment): Assignment | null {
   const unfinished = assignments
     .filter((assignment) => ["assigned", "in_progress"].includes(assignment.work_state))
@@ -386,10 +404,11 @@ export function AssignmentSwitcher({
   const selectedAssignment = assignments.find(
     (assignment) => assignment.assignment_id === selectedAssignmentId,
   );
+  const copy = (zh: string, en: string) => (locale === "en" ? en : zh);
 
   return (
-    <section aria-label="我的批次任务">
-      <h2>我的批次任务</h2>
+    <section aria-label={copy("我的批次任务", "My batch assignments")}>
+      <h2>{copy("我的批次任务", "My batch assignments")}</h2>
       <label>
         {locale === "zh-CN" ? "界面语言" : "Interface language"}
         <select
@@ -402,10 +421,12 @@ export function AssignmentSwitcher({
           <option value="en">English</option>
         </select>
       </label>
-      {loadingBatches ? <p role="status">正在读取批次…</p> : null}
-      {!loadingBatches && batches.length === 0 && !error ? <p>当前没有已分配批次。</p> : null}
+      {loadingBatches ? <p role="status">{copy("正在读取批次…", "Loading batches…")}</p> : null}
+      {!loadingBatches && batches.length === 0 && !error ? (
+        <p>{copy("当前没有已分配批次。", "No assigned batches.")}</p>
+      ) : null}
       {batches.length > 1 ? (
-        <nav aria-label="批次选择">
+        <nav aria-label={copy("批次选择", "Batch selection")}>
           {batches.map((batch) => (
             <button
               aria-pressed={batch.batch_id === selectedBatchId}
@@ -431,12 +452,14 @@ export function AssignmentSwitcher({
           ))}
         </nav>
       ) : null}
-      {loadingAssignments ? <p role="status">正在读取 Assignment…</p> : null}
+      {loadingAssignments ? (
+        <p role="status">{copy("正在读取 Assignment…", "Loading assignments…")}</p>
+      ) : null}
       {error ? (
         <p role="alert">
-          无法读取或更新 Assignment。
+          {copy("无法读取或更新 Assignment。", "Unable to load or update assignments.")}
           <button onClick={() => setListRetry((value) => value + 1)} type="button">
-            重试读取
+            {copy("重试读取", "Retry loading")}
           </button>
         </p>
       ) : null}
@@ -476,8 +499,14 @@ export function AssignmentSwitcher({
           return (
             <li key={assignment.assignment_id}>
               <h3>{label}</h3>
-              <p>队列：{assignment.queue_state}</p>
-              <p>工作：{assignment.work_state}</p>
+              <p>
+                {locale === "en" ? "Queue: " : "队列："}
+                {assignmentStateLabel(locale, assignment.queue_state)}
+              </p>
+              <p>
+                {locale === "en" ? "Work: " : "工作："}
+                {assignmentStateLabel(locale, assignment.work_state)}
+              </p>
               {assignment.work_state === "submitted" ? (
                 <button
                   disabled={
@@ -489,7 +518,7 @@ export function AssignmentSwitcher({
                   onClick={() => void updateAssignment(assignment, "revise")}
                   type="button"
                 >
-                  修订 {label}
+                  {copy("修订", "Revise")} {label}
                 </button>
               ) : (
                 <button
@@ -502,7 +531,7 @@ export function AssignmentSwitcher({
                   onClick={() => void updateAssignment(assignment, "open")}
                   type="button"
                 >
-                  打开 {label}
+                  {copy("打开", "Open")} {label}
                 </button>
               )}
               {!["blocked", "submitted", "revoked"].includes(assignment.work_state) ? (
@@ -517,7 +546,7 @@ export function AssignmentSwitcher({
                     onClick={() => void deferAndContinue(assignment)}
                     type="button"
                   >
-                    暂缓 {label}
+                    {copy("暂缓", "Defer")} {label}
                   </button>
                   <button
                     disabled={busy || blockDraft !== null || !workspaceSafe}
@@ -530,14 +559,14 @@ export function AssignmentSwitcher({
                     }
                     type="button"
                   >
-                    报告阻断 {label}
+                    {copy("报告阻断", "Report block")} {label}
                   </button>
                 </>
               ) : null}
               {blockDraft?.assignmentId === assignment.assignment_id ? (
                 <form onSubmit={(event) => void reportBlock(event, assignment)}>
                   <label>
-                    阻断原因
+                    {copy("阻断原因", "Block reason")}
                     <select
                       onChange={(event) =>
                         setBlockDraft({
@@ -547,16 +576,26 @@ export function AssignmentSwitcher({
                       }
                       value={blockDraft.reasonCode}
                     >
-                      <option value="technical_failure">技术故障</option>
-                      <option value="image_unavailable">图片不可用</option>
-                      <option value="temporary_worker_issue">工人临时问题</option>
-                      <option value="conflict_of_interest">利益冲突</option>
-                      <option value="unable_to_complete">无法完成</option>
-                      <option value="other">其他</option>
+                      <option value="technical_failure">
+                        {copy("技术故障", "Technical failure")}
+                      </option>
+                      <option value="image_unavailable">
+                        {copy("图片不可用", "Image unavailable")}
+                      </option>
+                      <option value="temporary_worker_issue">
+                        {copy("工人临时问题", "Temporary worker issue")}
+                      </option>
+                      <option value="conflict_of_interest">
+                        {copy("利益冲突", "Conflict of interest")}
+                      </option>
+                      <option value="unable_to_complete">
+                        {copy("无法完成", "Unable to complete")}
+                      </option>
+                      <option value="other">{copy("其他", "Other")}</option>
                     </select>
                   </label>
                   <label>
-                    说明
+                    {copy("说明", "Details")}
                     <textarea
                       onChange={(event) =>
                         setBlockDraft({ ...blockDraft, reasonText: event.target.value })
@@ -566,10 +605,10 @@ export function AssignmentSwitcher({
                     />
                   </label>
                   <button disabled={busy} type="submit">
-                    确认报告阻断
+                    {copy("确认报告阻断", "Confirm block report")}
                   </button>
                   <button disabled={busy} onClick={() => setBlockDraft(null)} type="button">
-                    取消
+                    {copy("取消", "Cancel")}
                   </button>
                 </form>
               ) : null}
@@ -579,7 +618,10 @@ export function AssignmentSwitcher({
       </ul>
       {selectedAssignment ? (
         <>
-          <p>当前 Assignment：{assignmentLabel(selectedAssignment)}</p>
+          <p>
+            {locale === "en" ? "Current Assignment: " : "当前 Assignment："}
+            {assignmentLabel(selectedAssignment)}
+          </p>
           <AssignmentWorkspace
             activeTimeRuleVersion={selectedAssignment.task.active_time_rule_version}
             assignmentId={selectedAssignment.assignment_id}

@@ -236,9 +236,14 @@ def process_next_metric_snapshot(*, worker_id: str) -> MetricSnapshot | None:
         return None
     try:
         return _complete_metric_snapshot(snapshot_id=snapshot.snapshot_id, worker_id=worker_id)
+    except MetricSnapshot.DoesNotExist:
+        return None
     except Exception as error:
-        return _fail_metric_snapshot(
-            snapshot_id=snapshot.snapshot_id,
-            worker_id=worker_id,
-            error=error,
-        )
+        try:
+            return _fail_metric_snapshot(
+                snapshot_id=snapshot.snapshot_id,
+                worker_id=worker_id,
+                error=error,
+            )
+        except MetricSnapshot.DoesNotExist:
+            return None

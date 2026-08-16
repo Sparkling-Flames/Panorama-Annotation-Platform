@@ -696,8 +696,13 @@ def process_next_analysis_job(*, worker_id: str) -> AnalysisJob | None:
         return None
     try:
         return _complete_analysis_job(job_id=job.job_id, worker_id=worker_id)
+    except AnalysisJob.DoesNotExist:
+        return None
     except Exception as error:
-        return _fail_analysis_job(job_id=job.job_id, worker_id=worker_id, error=error)
+        try:
+            return _fail_analysis_job(job_id=job.job_id, worker_id=worker_id, error=error)
+        except AnalysisJob.DoesNotExist:
+            return None
 
 
 def analysis_job_metrics() -> dict[str, int]:

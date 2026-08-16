@@ -5,7 +5,8 @@ from uuid import uuid4
 
 import pytest
 from django.test import Client
-from identity.models import User
+from identity.models import DataNoticeAcceptance, User
+from identity.services import CURRENT_DATA_NOTICE_VERSION
 from media.catalog import MediaCandidateNotFound, MediaCatalogCandidate
 from media.models import Asset, MediaObjectRegistration, MediaVariant
 from work.models import OperationalIssue, Task
@@ -117,9 +118,30 @@ def assignment_with_media(
 
 
 def logged_in(user: User) -> Client:
+    DataNoticeAcceptance.objects.get_or_create(
+        worker=user,
+        notice_version=CURRENT_DATA_NOTICE_VERSION,
+    )
     client = Client()
     client.force_login(user)
     return client
+
+
+def test_worker_cannot_read_assigned_media_before_accepting_current_notice(
+    monkeypatch: Any,
+) -> None:
+    owner = worker("media-notice-gated-owner")
+    assignment, _variants = assignment_with_media(owner=owner, suffix="notice-gated")
+    cos = RecordingCosClient()
+    monkeypatch.setattr("media.catalog.configured_cos_client", lambda: (cos, "private-bucket"))
+    client = Client()
+    client.force_login(owner)
+
+    response = client.get(f"/api/worker/assignments/{assignment.assignment_id}/media")
+
+    assert response.status_code == 409
+    assert response.json() == {"error": {"code": "notice_acceptance_required"}}
+    assert cos.head_calls == cos.sign_calls == []
 
 
 def candidate_for(variant: MediaVariant, *, version: str | None = None) -> MediaCatalogCandidate:

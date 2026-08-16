@@ -7,6 +7,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, IntegrityError, transaction
 from django.utils import timezone
+from identity.authorization import ResourceNotFound
 from identity.models import User
 from media.models import Asset, MediaImportPreview, MediaVariant
 from work.meta_schema import META_COPY_V1, META_SCHEMA_V1
@@ -293,6 +294,24 @@ def test_pap_tba_sc_004_published_tasks_can_be_cancelled_or_superseded_without_r
     assert superseded.replacement_task_id == replacement.task_id
     assert superseded.terminal_reason == "new annotation contract"
     assert superseded.asset_id == original.asset_id
+
+
+def test_supersede_task_returns_not_found_when_either_task_id_is_missing() -> None:
+    published = published_manual_task("supersede-missing")
+
+    with pytest.raises(ResourceNotFound):
+        supersede_task(
+            task_id=published.task_id,
+            replacement_task_id=uuid4(),
+            reason="replacement contract",
+        )
+
+    with pytest.raises(ResourceNotFound):
+        supersede_task(
+            task_id=uuid4(),
+            replacement_task_id=published.task_id,
+            reason="replacement contract",
+        )
 
 
 def test_task_4_5_stale_task_instance_cannot_create_assignment_after_cancellation() -> None:

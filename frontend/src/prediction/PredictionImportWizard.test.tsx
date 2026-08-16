@@ -80,9 +80,30 @@ describe("PredictionImportWizard", () => {
       )
       .mockResolvedValueOnce(
         jsonResponse(
-          { mode: "semi", reused: true, status: "published", task_id: "semi-task-001" },
+          {
+            mode: "semi",
+            previous_round_task_id: null,
+            reused: true,
+            status: "published",
+            task_id: "semi-task-001",
+          },
           200,
         ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            mode: "semi",
+            previous_round_task_id: "semi-task-001",
+            reused: false,
+            status: "published",
+            task_id: "semi-task-002",
+          },
+          201,
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: "semi_task_previous_round_invalid" } }, 409),
       );
     vi.stubGlobal("fetch", fetchMock);
     const file = new File([layoutText], "layout.json", { type: "application/json" });
@@ -143,5 +164,33 @@ describe("PredictionImportWizard", () => {
       body: JSON.stringify({ media_variant_ids: ["variant-001", "variant-002"] }),
       method: "POST",
     });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "创建下一标注轮次 / Create next annotation round",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByRole("status").at(-1)).toHaveTextContent(
+        "semi-task-002 · published · Previous round: semi-task-001",
+      ),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({
+      body: JSON.stringify({
+        media_variant_ids: ["variant-001", "variant-002"],
+        previous_round_task_id: "semi-task-001",
+      }),
+      method: "POST",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "创建下一标注轮次 / Create next annotation round",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "上一标注轮次与当前冻结 Artifact 或媒体不匹配，请从当前轮次继续。",
+    );
   });
 });

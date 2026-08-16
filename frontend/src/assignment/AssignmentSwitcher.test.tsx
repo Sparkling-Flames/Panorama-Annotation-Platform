@@ -114,6 +114,30 @@ describe("AssignmentSwitcher", () => {
     expect(sessionStorage).toHaveLength(0);
   });
 
+  it("uses English copy for Assignment loading failures and retry after the worker selects English", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }] }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ error: { code: "assignment_list_unavailable" } }, 503))
+      .mockResolvedValueOnce(
+        jsonResponse({ batches: [{ batch_id: "batch-001", name: "Warehouse", status: "open" }] }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ assignments: [first] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AssignmentSwitcher tabId="tab-001" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取或更新 Assignment");
+    fireEvent.change(screen.getByLabelText("界面语言"), { target: { value: "en" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load or update assignments.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading" }));
+    expect(await screen.findByText("warehouse-a")).toBeInTheDocument();
+    expect(screen.getByText("Queue: Ready")).toBeInTheDocument();
+    expect(screen.getByText("Work: Assigned")).toBeInTheDocument();
+  });
+
   it("PAP-TBA-SC-006 skips temporarily and opens the next ordered Assignment", async () => {
     const fetchMock = vi
       .fn()

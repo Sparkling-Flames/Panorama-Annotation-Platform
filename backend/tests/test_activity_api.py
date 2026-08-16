@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from activity.models import ActivityEvent
+from activity.services import derive_assignment_activity
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, transaction
 from django.test import Client
@@ -85,8 +86,21 @@ def client_with_workspace(user: User, tab_id: str, *, takeover: bool = False) ->
     return client
 
 
+def test_worker_activity_summary_is_not_exposed_over_http() -> None:
+    assigned_worker, assignment = published_assignment("activity-summary-private")
+    client = client_with_workspace(assigned_worker, str(uuid4()))
+
+    response = client.get(f"/api/worker/assignments/{assignment.assignment_id}/activity-summary")
+
+    assert response.status_code == 404
+
+
 def request_json(client: Client, method: str, path: str, payload: dict[str, object]):
     return getattr(client, method)(path, data=json.dumps(payload), content_type="application/json")
+
+
+def activity_summary(*, actor: User, assignment: Assignment) -> dict[str, object]:
+    return derive_assignment_activity(actor=actor, assignment_id=assignment.assignment_id)
 
 
 def open_draft(client: Client, assignment: Assignment, tab_id: str) -> dict[str, object]:
@@ -352,11 +366,8 @@ def test_pap_aof_sc_004_and_006_activity_is_capped_and_split_by_draft_cycle() ->
             request_json(client, "post", "/api/worker/activity-events", payload).status_code == 201
         )
 
-    before_second_submit = client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    )
-    assert before_second_submit.status_code == 200
-    assert before_second_submit.json() == {
+    before_second_submit = activity_summary(actor=assigned_worker, assignment=assignment)
+    assert before_second_submit == {
         "active_time_rule_version": "active-time-v1",
         "initial_ms": 25_000,
         "reasons": ["interval_capped"],
@@ -379,11 +390,9 @@ def test_pap_aof_sc_004_and_006_activity_is_capped_and_split_by_draft_cycle() ->
         },
     )
     assert second.status_code == 201
-    after_second_submit = client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    )
-    assert after_second_submit.json() == {
-        **before_second_submit.json(),
+    after_second_submit = activity_summary(actor=assigned_worker, assignment=assignment)
+    assert after_second_submit == {
+        **before_second_submit,
         "revision_ms": 5_000,
         "unsubmitted_ms": 0,
     }
@@ -476,9 +485,7 @@ def test_overlapping_client_leases_are_not_double_counted() -> None:
             request_json(client, "post", "/api/worker/activity-events", payload).status_code == 201
         )
 
-    summary = client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    ).json()
+    summary = activity_summary(actor=assigned_worker, assignment=assignment)
 
     assert summary["unsubmitted_ms"] == 15_000
     assert summary["total_ms"] == 15_000
@@ -540,9 +547,7 @@ def test_pap_aof_sc_011_overlapping_sessions_are_unioned_by_client_wall_time() -
             request_json(client, "post", "/api/worker/activity-events", payload).status_code == 201
         )
 
-    summary = client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    ).json()
+    summary = activity_summary(actor=assigned_worker, assignment=assignment)
 
     assert summary["unsubmitted_ms"] == 15_000
     assert summary["total_ms"] == 15_000
@@ -593,9 +598,7 @@ def test_backward_wall_clock_is_reported_and_never_increases_active_time() -> No
             request_json(client, "post", "/api/worker/activity-events", payload).status_code == 201
         )
 
-    summary = client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    ).json()
+    summary = activity_summary(actor=assigned_worker, assignment=assignment)
 
     assert summary["total_ms"] == 0
     assert summary["reasons"] == ["wall_clock_non_monotonic"]
@@ -632,9 +635,7 @@ def test_pap_aof_sc_010_active_time_is_context_not_a_decision() -> None:
             request_json(client, "post", "/api/worker/activity-events", payload).status_code == 201
         )
 
-    summary = client.get(
-        f"/api/worker/assignments/{assignment.assignment_id}/activity-summary"
-    ).json()
+    summary = activity_summary(actor=assigned_worker, assignment=assignment)
     assignment.refresh_from_db()
 
     assert set(summary) == {

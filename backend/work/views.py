@@ -15,7 +15,7 @@ from identity.http import (
     opaque_uuid,
     request_json,
     require_admin,
-    require_worker,
+    require_production_worker,
 )
 from identity.models import User
 from identity.services import WorkspaceLeaseLost, record_audit_event
@@ -580,17 +580,25 @@ def admin_prediction_semi_tasks_view(request: HttpRequest, artifact_id: UUID) ->
         return actor
     payload = request_json(request)
     raw_variant_ids = None if payload is None else payload.get("media_variant_ids")
+    raw_previous_round_task_id = None if payload is None else payload.get("previous_round_task_id")
     if (
         payload is None
-        or set(payload) != {"media_variant_ids"}
+        or set(payload)
+        not in ({"media_variant_ids"}, {"media_variant_ids", "previous_round_task_id"})
         or not isinstance(raw_variant_ids, list)
         or not raw_variant_ids
         or any(not isinstance(value, str) for value in raw_variant_ids)
+        or ("previous_round_task_id" in payload and not isinstance(raw_previous_round_task_id, str))
     ):
         return error_response("invalid_semi_task_request", status=400)
     media_variant_ids = [opaque_uuid(value) for value in raw_variant_ids]
-    if any(value is None for value in media_variant_ids) or len(set(media_variant_ids)) != len(
-        media_variant_ids
+    previous_round_task_id = (
+        None if raw_previous_round_task_id is None else opaque_uuid(raw_previous_round_task_id)
+    )
+    if (
+        any(value is None for value in media_variant_ids)
+        or len(set(media_variant_ids)) != len(media_variant_ids)
+        or (raw_previous_round_task_id is not None and previous_round_task_id is None)
     ):
         return error_response("invalid_semi_task_request", status=400)
     try:
@@ -598,6 +606,7 @@ def admin_prediction_semi_tasks_view(request: HttpRequest, artifact_id: UUID) ->
             actor=actor,
             prediction_artifact_id=artifact_id,
             media_variant_ids=[value for value in media_variant_ids if value is not None],
+            previous_round_task_id=previous_round_task_id,
         )
     except ResourceNotFound:
         return error_response(ResourceNotFound.code, status=404)
@@ -606,6 +615,9 @@ def admin_prediction_semi_tasks_view(request: HttpRequest, artifact_id: UUID) ->
     return JsonResponse(
         {
             "mode": task.mode,
+            "previous_round_task_id": (
+                None if task.previous_round_task_id is None else str(task.previous_round_task_id)
+            ),
             "reused": not created,
             "status": task.status,
             "task_id": str(task.task_id),
@@ -702,7 +714,7 @@ def admin_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonRe
 
 @require_GET
 def worker_batches_view(request: HttpRequest) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     batches = WorkBatch.objects.filter(assignments__worker=actor).distinct()
@@ -730,7 +742,7 @@ def worker_batches_view(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def worker_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     assignments = list(
@@ -745,7 +757,7 @@ def worker_batch_assignments_view(request: HttpRequest, batch_id: UUID) -> JsonR
 
 @require_GET
 def worker_assignment_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     try:
@@ -764,7 +776,7 @@ def _write_payload(request: HttpRequest) -> tuple[dict[str, object] | None, UUID
 
 @require_POST
 def worker_assignment_open_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload, tab_id = _write_payload(request)
@@ -796,7 +808,7 @@ def worker_assignment_open_view(request: HttpRequest, assignment_id: UUID) -> Js
 
 @require_POST
 def worker_assignment_queue_state_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload, tab_id = _write_payload(request)
@@ -826,7 +838,7 @@ def worker_assignment_queue_state_view(request: HttpRequest, assignment_id: UUID
 
 @require_http_methods(["GET", "PUT"])
 def worker_assignment_draft_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     expected_version: int | None = None
@@ -926,7 +938,7 @@ def worker_assignment_draft_view(request: HttpRequest, assignment_id: UUID) -> J
 
 @require_POST
 def worker_assignment_submit_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload, tab_id = _write_payload(request)
@@ -996,7 +1008,7 @@ def worker_assignment_submit_view(request: HttpRequest, assignment_id: UUID) -> 
 def worker_assignment_assist_candidate_view(
     request: HttpRequest, assignment_id: UUID
 ) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     try:
@@ -1010,7 +1022,7 @@ def worker_assignment_assist_candidate_view(
 
 @require_POST
 def worker_assignment_revise_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload, tab_id = _write_payload(request)
@@ -1035,7 +1047,7 @@ def worker_assignment_revise_view(request: HttpRequest, assignment_id: UUID) -> 
 
 @require_POST
 def worker_assignment_block_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload = request_json(request)
@@ -1323,7 +1335,7 @@ def admin_task_delivery_selection_view(request: HttpRequest, task_id: UUID) -> J
 
 @require_GET
 def worker_rework_requests_view(request: HttpRequest) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     try:
@@ -1335,7 +1347,7 @@ def worker_rework_requests_view(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def worker_guidance_events_view(request: HttpRequest) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     try:
@@ -1347,7 +1359,7 @@ def worker_guidance_events_view(request: HttpRequest) -> JsonResponse:
 
 @require_POST
 def worker_guidance_event_acknowledge_view(request: HttpRequest, guidance_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload = request_json(request)
@@ -1398,7 +1410,7 @@ def admin_assignment_guidance_events_view(
 
 @require_POST
 def worker_rework_request_accept_view(request: HttpRequest, request_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload, tab_id = _write_payload(request)

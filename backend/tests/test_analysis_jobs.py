@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import timedelta
 from io import StringIO
 from unittest.mock import patch
@@ -15,19 +16,24 @@ from django.utils import timezone
 from identity.models import ActiveWorkspace, AuditEvent, DataNoticeAcceptance, User
 from identity.services import CURRENT_DATA_NOTICE_VERSION
 from media.models import Asset, MediaVariant
+from work import batch_exports, jobs, metric_snapshots
+from work.batch_exports import request_batch_export
 from work.jobs import (
     analysis_job_metrics,
     eligible_task_input_manifest,
     process_next_analysis_job,
     request_revision_audit,
 )
+from work.metric_snapshots import request_metric_snapshot
 from work.models import (
     AnalysisJob,
     AnnotationRevision,
     Assignment,
     AssignmentProposal,
     AuditArtifact,
+    BatchExportSnapshot,
     CurrentDraft,
+    MetricSnapshot,
     OperationalIssue,
     SubmissionAssessment,
     Task,
@@ -181,6 +187,100 @@ def canonical_geometry_state(
         "scope_reason_text": "",
         "worker_scope_observation": "annotatable",
     }
+
+
+def queued_analysis_job() -> AnalysisJob:
+    return submitted_revision("expired-analysis")[0].analysis_jobs.get()
+
+
+def queued_metric_snapshot() -> MetricSnapshot:
+    snapshot, _created, _reused = request_metric_snapshot(
+        batch_id=create_work_batch(name="Expired metric lease").batch_id
+    )
+    return snapshot
+
+
+def queued_batch_export() -> BatchExportSnapshot:
+    revision, _assignment = submitted_revision("expired-export")
+    snapshot, _created, _reused = request_batch_export(batch_id=revision.assignment.batch_id)
+    return snapshot
+
+
+@pytest.mark.parametrize(
+    ("module", "claim_name", "complete_name", "model", "factory", "process_name"),
+    (
+        pytest.param(
+            jobs,
+            "claim_analysis_job",
+            "_complete_analysis_job",
+            AnalysisJob,
+            queued_analysis_job,
+            "process_next_analysis_job",
+            id="analysis-job",
+        ),
+        pytest.param(
+            metric_snapshots,
+            "_claim_metric_snapshot",
+            "_complete_metric_snapshot",
+            MetricSnapshot,
+            queued_metric_snapshot,
+            "process_next_metric_snapshot",
+            id="metric-snapshot",
+        ),
+        pytest.param(
+            batch_exports,
+            "_claim_batch_export",
+            "_complete_batch_export",
+            BatchExportSnapshot,
+            queued_batch_export,
+            "process_next_batch_export",
+            id="batch-export",
+        ),
+    ),
+)
+@pytest.mark.parametrize("failure_path", (False, True), ids=("complete", "fail"))
+def test_expired_lease_takeover_makes_old_worker_a_noop(
+    monkeypatch: pytest.MonkeyPatch,
+    module: object,
+    claim_name: str,
+    complete_name: str,
+    model: type[AnalysisJob | MetricSnapshot | BatchExportSnapshot],
+    factory: Callable[[], AnalysisJob | MetricSnapshot | BatchExportSnapshot],
+    process_name: str,
+    failure_path: bool,
+) -> None:
+    queued = factory()
+    claim = getattr(module, claim_name)
+    old_claim = claim(worker_id="old-worker")
+    assert old_claim is not None
+    model.objects.filter(pk=old_claim.pk).update(locked_at=timezone.now() - timedelta(days=1))
+    new_claim = claim(worker_id="new-worker")
+    assert new_claim is not None and new_claim.pk == old_claim.pk
+    owner_state = (
+        new_claim.status,
+        new_claim.locked_by,
+        new_claim.locked_at,
+        new_claim.attempt_count,
+        new_claim.last_error_code,
+    )
+
+    monkeypatch.setattr(module, claim_name, lambda *, worker_id: old_claim)
+    if failure_path:
+        monkeypatch.setattr(
+            module,
+            complete_name,
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError("old worker failed")),
+        )
+
+    assert getattr(module, process_name)(worker_id="old-worker") is None
+    queued.refresh_from_db()
+    assert (
+        queued.status,
+        queued.locked_by,
+        queued.locked_at,
+        queued.attempt_count,
+        queued.last_error_code,
+    ) == owner_state
 
 
 def test_pap_acr_sc_001_failed_analysis_keeps_revision_pending_and_retries() -> None:

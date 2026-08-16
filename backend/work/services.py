@@ -1338,6 +1338,7 @@ def create_semi_task_from_prediction(
     actor: User,
     prediction_artifact_id: UUID,
     media_variant_ids: Iterable[UUID],
+    previous_round_task_id: UUID | None = None,
 ) -> tuple[Task, bool]:
     _require_admin(actor)
     artifact = (
@@ -1359,6 +1360,29 @@ def create_semi_task_from_prediction(
         raise ResourceNotFound
 
     requested_id_set = {item.media_variant_id for item in variants}
+    previous_round_task: Task | None = None
+    if previous_round_task_id is not None:
+        previous_round_task = (
+            Task.objects.select_for_update()
+            .prefetch_related("allowed_media_variants")
+            .filter(task_id=previous_round_task_id)
+            .first()
+        )
+        if previous_round_task is None:
+            raise ResourceNotFound
+        if (
+            previous_round_task.asset_id != artifact.asset_id
+            or previous_round_task.status != Task.Status.PUBLISHED
+            or previous_round_task.mode != Task.Mode.SEMI
+            or previous_round_task.prediction_artifact_id != artifact.artifact_id
+            or previous_round_task.prediction_artifact_sha256 != artifact.artifact_sha256
+            or {item.media_variant_id for item in previous_round_task.allowed_media_variants.all()}
+            != requested_id_set
+        ):
+            raise ValidationError(
+                "The previous Semi Task does not match this annotation round.",
+                code="semi_task_previous_round_invalid",
+            )
     existing_tasks = (
         Task.objects.filter(
             asset=artifact.asset,
@@ -1366,6 +1390,7 @@ def create_semi_task_from_prediction(
             prediction_artifact_id=artifact.artifact_id,
             prediction_artifact_sha256=artifact.artifact_sha256,
             status=Task.Status.PUBLISHED,
+            previous_round_task=previous_round_task,
         )
         .prefetch_related("allowed_media_variants")
         .order_by("created_at", "task_id")
@@ -1380,6 +1405,7 @@ def create_semi_task_from_prediction(
         asset=artifact.asset,
         media_variants=variants,
         mode=Task.Mode.SEMI,
+        previous_round_task=previous_round_task,
         prediction_artifact=artifact,
     )
     task = publish_task(task_id=draft.task_id)
@@ -1393,6 +1419,9 @@ def create_semi_task_from_prediction(
             "asset_id": str(artifact.asset_id),
             "media_variant_ids": [str(item.media_variant_id) for item in variants],
             "prediction_artifact_id": str(artifact.artifact_id),
+            "previous_round_task_id": (
+                None if previous_round_task is None else str(previous_round_task.task_id)
+            ),
         },
     )
     return task, True
@@ -1455,8 +1484,10 @@ def supersede_task(*, task_id: UUID, replacement_task_id: UUID, reason: str) -> 
         .filter(task_id__in=(task_id, replacement_task_id))
         .order_by("task_id")
     }
-    task = tasks[task_id]
-    replacement = tasks[replacement_task_id]
+    task = tasks.get(task_id)
+    replacement = tasks.get(replacement_task_id)
+    if task is None or replacement is None:
+        raise ResourceNotFound
     clean_reason = reason.strip()
     if (
         task.status == Task.Status.SUPERSEDED

@@ -11,7 +11,7 @@ from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from identity.authorization import ResourceNotFound
-from identity.http import error_response, require_admin, require_worker
+from identity.http import error_response, require_admin, require_production_worker
 from media.catalog import (
     CosCatalogUnavailable,
     MediaCandidateIntegrityConflict,
@@ -36,7 +36,7 @@ from .services import create_manual_annotation_round, get_owned_assignment
 
 @require_GET
 def worker_assignment_media_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     try:

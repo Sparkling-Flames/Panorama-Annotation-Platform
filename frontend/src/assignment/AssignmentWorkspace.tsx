@@ -55,6 +55,42 @@ const RECOVERY_ONLY_ERROR_CODES = new Set([
   "batch_not_open",
 ]);
 
+function copy(locale: SupportedLocale, zh: string, en: string): string {
+  return locale === "en" ? en : zh;
+}
+
+function errorDescription(
+  locale: SupportedLocale,
+  code: string | undefined,
+  fallback: { en: string; "zh-CN": string },
+): string {
+  const message =
+    code === "draft_conflict"
+      ? copy(
+          locale,
+          "草稿冲突：本地内容未覆盖服务器草稿。",
+          "Draft conflict: local changes did not overwrite the server Draft.",
+        )
+      : code === "batch_not_open"
+        ? copy(
+            locale,
+            "批次当前未开放，无法保存草稿。",
+            "This batch is no longer open, so the Draft cannot be saved.",
+          )
+        : code === "assignment_not_editable" || code === "assignment_task_unavailable"
+          ? copy(locale, "此 Assignment 当前不可编辑。", "This Assignment is no longer editable.")
+          : code === "submission_idempotency_conflict"
+            ? copy(
+                locale,
+                "此提交重试键已用于不同内容；请重新加载 Assignment 后再提交。",
+                "This submission retry key was already used for different content. Reload the Assignment, then submit again.",
+              )
+            : fallback[locale];
+  return code === undefined
+    ? message
+    : `${message} ${copy(locale, "诊断代码：", "Diagnostic code: ")}${code}.`;
+}
+
 function recoveryHref(record: {
   assignment_id: string;
   base_version: number;
@@ -159,6 +195,7 @@ export function AssignmentWorkspace({
   tabId: string;
   writable?: boolean;
 }) {
+  const text = (zh: string, en: string) => copy(locale, zh, en);
   const [draft, setDraft] = useState<DraftPayload | null>(null);
   const [editorGeneration, setEditorGeneration] = useState(0);
   const [loadError, setLoadError] = useState("");
@@ -543,10 +580,12 @@ export function AssignmentWorkspace({
         method: "POST",
       });
       if (!response.ok) {
-        const body = (await response.json()) as { error?: { code?: string } };
+        const body = (await response.json()) as { error?: SaveError };
         if (body.error?.code === "draft_conflict") {
           saveBlocked.current = true;
+          setSaveError(body.error);
           setSaveStatus("conflict");
+          return;
         } else if (body.error?.code === "workspace_lease_lost") {
           saveBlocked.current = true;
           setWorkspaceLost(true);
@@ -570,9 +609,10 @@ export function AssignmentWorkspace({
     if (unavailableRecovery !== null) {
       return (
         <p role="alert">
-          服务器草稿当前不可读取；本地恢复副本仍保留，且不会自动覆盖服务器数据。 / The server Draft
-          is currently unavailable; the local recovery copy is preserved and will not overwrite
-          server data automatically.{" "}
+          {text(
+            "服务器草稿当前不可读取；本地恢复副本仍保留，且不会自动覆盖服务器数据。",
+            "The server Draft is currently unavailable. The local recovery copy is preserved and will not overwrite server data automatically.",
+          )}{" "}
           <a
             download={`annotation-recovery-${assignmentId}.json`}
             href={recoveryHref({
@@ -583,10 +623,10 @@ export function AssignmentWorkspace({
               updated_at: unavailableRecovery.updated_at,
             })}
           >
-            导出本地恢复副本
+            {text("导出本地恢复副本", "Download local recovery copy")}
           </a>{" "}
           <button onClick={() => setReload((value) => value + 1)} type="button">
-            重试读取草稿
+            {text("重试读取草稿", "Retry loading Draft")}
           </button>
         </p>
       );
@@ -594,21 +634,24 @@ export function AssignmentWorkspace({
     if (loadError === "semi_prediction_unavailable") {
       return (
         <p role="alert">
-          预测数据不可用，任务已技术阻断并等待管理员处理。 / Prediction data is unavailable; the
-          task is technically blocked for administrator action.
+          {text(
+            "预测数据不可用，任务已技术阻断并等待管理员处理。",
+            "Prediction data is unavailable. This task is technically blocked for administrator action.",
+          )}
         </p>
       );
     }
     return (
       <p role="alert">
-        无法读取服务器草稿。
+        {text("无法读取服务器草稿。", "Unable to load the server Draft.")}
         <button onClick={() => setReload((value) => value + 1)} type="button">
-          重试读取草稿
+          {text("重试读取草稿", "Retry loading Draft")}
         </button>
       </p>
     );
   }
-  if (draft === null || localState === null) return <p>正在读取服务器草稿…</p>;
+  if (draft === null || localState === null)
+    return <p>{text("正在读取服务器草稿…", "Loading server Draft…")}</p>;
   const recoveryDownload = (
     <a
       download={`annotation-recovery-${assignmentId}.json`}
@@ -620,7 +663,7 @@ export function AssignmentWorkspace({
         updated_at: recoverySavedAt || draft.updated_at || null,
       })}
     >
-      导出本地恢复副本
+      {text("导出本地恢复副本", "Download local recovery copy")}
     </a>
   );
 
@@ -629,7 +672,10 @@ export function AssignmentWorkspace({
       {(media, onVisibleMediaError) =>
         revision ? (
           <p role="status">
-            Revision {revision.revision_no} 已提交：{revision.revision_id}
+            {text(
+              `Revision ${revision.revision_no} 已提交：${revision.revision_id}`,
+              `Revision ${revision.revision_no} submitted: ${revision.revision_id}`,
+            )}
           </p>
         ) : (
           <div className="assignment-workspace">
@@ -655,25 +701,32 @@ export function AssignmentWorkspace({
             />
             {workspaceLost ? (
               <p role="alert">
-                工作区已被接管；此页面已转为只读，不能继续编辑或提交。 本地恢复副本 base_version{" "}
-                {draftVersion.current}
+                {text(
+                  "工作区已被接管；此页面已转为只读，不能继续编辑或提交。",
+                  "This workspace was taken over. This page is read-only and cannot continue editing or submitting.",
+                )}{" "}
+                {text("本地恢复副本", "Local recovery copy")} base_version {draftVersion.current}
                 {recoverySavedAt ? (
                   <>
-                    ，保存于{" "}
+                    {text("，保存于", ", saved at ")}
                     <time dateTime={recoverySavedAt}>
                       {formatLocalTimestamp(recoverySavedAt, locale)}
                     </time>
                   </>
                 ) : null}
-                ；服务器版本不可读取。 {recoveryDownload}
+                {text("；服务器版本不可读取。", "; the server version is unavailable.")}{" "}
+                {recoveryDownload}
               </p>
             ) : saveStatus === "conflict" ? (
               <p role="alert">
-                草稿冲突：本地内容未覆盖服务器草稿。 本地恢复副本 base_version{" "}
-                {draftVersion.current}
+                {errorDescription(locale, saveError?.code, {
+                  "zh-CN": "草稿冲突：本地内容未覆盖服务器草稿。",
+                  en: "Draft conflict: local changes did not overwrite the server Draft.",
+                })}{" "}
+                {text("本地恢复副本", "Local recovery copy")} base_version {draftVersion.current}
                 {recoverySavedAt ? (
                   <>
-                    ，保存于{" "}
+                    {text("，保存于", ", saved at ")}
                     <time dateTime={recoverySavedAt}>
                       {formatLocalTimestamp(recoverySavedAt, locale)}
                     </time>
@@ -681,10 +734,13 @@ export function AssignmentWorkspace({
                 ) : null}
                 {saveError?.server_draft_version === undefined
                   ? ""
-                  : `；服务器 draft_version ${saveError.server_draft_version}`}
+                  : text(
+                      `；服务器 draft_version ${saveError.server_draft_version}`,
+                      `; server draft_version ${saveError.server_draft_version}`,
+                    )}
                 {saveError?.server_updated_at ? (
                   <>
-                    ，服务器更新时间{" "}
+                    {text("，服务器更新时间", ", server updated at ")}
                     <time dateTime={saveError.server_updated_at}>
                       {formatLocalTimestamp(saveError.server_updated_at, locale)}
                     </time>
@@ -692,17 +748,20 @@ export function AssignmentWorkspace({
                 ) : null}
                 。
                 <button onClick={discardRecoveryAndReload} type="button">
-                  重新加载服务器草稿
+                  {text("重新加载服务器草稿", "Reload server Draft")}
                 </button>
                 {recoveryDownload}
               </p>
             ) : saveError?.code !== undefined && RECOVERY_ONLY_ERROR_CODES.has(saveError.code) ? (
               <p role="alert">
-                服务器状态已变化（{saveError.code}）；本地内容未自动合并或覆盖。 本地恢复副本
-                base_version {draftVersion.current}
+                {errorDescription(locale, saveError.code, {
+                  "zh-CN": "服务器状态已变化；本地内容未自动合并或覆盖。",
+                  en: "Server state changed; local changes were not merged or overwritten automatically.",
+                })}{" "}
+                {text("本地恢复副本", "Local recovery copy")} base_version {draftVersion.current}
                 {recoverySavedAt ? (
                   <>
-                    ，保存于{" "}
+                    {text("，保存于", ", saved at ")}
                     <time dateTime={recoverySavedAt}>
                       {formatLocalTimestamp(recoverySavedAt, locale)}
                     </time>
@@ -714,29 +773,38 @@ export function AssignmentWorkspace({
               <p role="alert">
                 {saveError ? (
                   <>
-                    保存失败：{saveError.code ?? "draft_save_failed"}
-                    {saveError.field ? `；字段 ${saveError.field}` : ""}
-                    {saveError.portal_id ? `；Portal ${saveError.portal_id}` : ""}。
+                    {errorDescription(locale, saveError.code, {
+                      "zh-CN": "保存草稿失败。",
+                      en: "Could not save Draft.",
+                    })}
+                    {saveError.field ? ` ${text("字段", "Field")}: ${saveError.field}.` : ""}
+                    {saveError.pair_id ? ` ${text("点对", "Pair")}: ${saveError.pair_id}.` : ""}
+                    {saveError.point_id ? ` ${text("点", "Point")}: ${saveError.point_id}.` : ""}
+                    {saveError.portal_id
+                      ? ` ${text("Portal", "Portal")}: ${saveError.portal_id}.`
+                      : ""}
                     {saveError.portal_id ? (
-                      <a href={`#portal-${saveError.portal_id}`}>定位 Portal</a>
+                      <a href={`#portal-${saveError.portal_id}`}>
+                        {text("定位 Portal", "Locate Portal")}
+                      </a>
                     ) : null}
                   </>
                 ) : (
-                  "保存失败。"
+                  text("保存失败。", "Could not save Draft.")
                 )}
                 <button onClick={() => void saveNow()} type="button">
-                  重试保存
+                  {text("重试保存", "Retry saving")}
                 </button>
               </p>
             ) : (
               <p aria-live="polite" role="status">
                 {saveStatus === "saving"
-                  ? "保存中"
+                  ? text("保存中", "Saving")
                   : saveStatus === "saved"
-                    ? "已保存"
+                    ? text("已保存", "Saved")
                     : saveStatus === "offline"
-                      ? "离线（本地保存）"
-                      : "未保存"}
+                      ? text("离线（本地保存）", "Offline (saved locally)")
+                      : text("未保存", "Unsaved")}
               </p>
             )}
             <PocWireframe
@@ -758,13 +826,21 @@ export function AssignmentWorkspace({
               onClick={() => void submit()}
               type="button"
             >
-              {submitting ? "提交中…" : "提交 Revision"}
+              {submitting
+                ? text("提交中…", "Submitting…")
+                : text("提交 Revision", "Submit Revision")}
             </button>
             {submitError ? (
               <p role="alert">
                 {submitError === "submission_unavailable"
-                  ? "提交结果未知，请重试；系统会使用同一幂等键且不会重复创建 Revision。"
-                  : `提交失败：${submitError}`}
+                  ? text(
+                      "提交结果未知，请重试；系统会使用同一幂等键且不会重复创建 Revision。",
+                      "Submission result is unknown. Retry uses the same idempotency key and will not create another Revision.",
+                    )
+                  : errorDescription(locale, submitError, {
+                      "zh-CN": "提交 Revision 失败。",
+                      en: "Could not submit Revision.",
+                    })}
               </p>
             ) : null}
           </div>

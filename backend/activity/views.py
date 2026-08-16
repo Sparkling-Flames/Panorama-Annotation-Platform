@@ -1,25 +1,24 @@
 from __future__ import annotations
 
 from math import isfinite
-from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_POST
 from identity.authorization import ResourceNotFound
 from identity.http import (
     current_session_key,
     error_response,
     opaque_uuid,
     request_json,
-    require_worker,
+    require_production_worker,
 )
 from identity.services import WorkspaceLeaseLost
 from work.models import OperationalIssue
 from work.operations import record_operational_issue
 
 from .models import ActivityEvent
-from .services import ACTIVE_TIME_RULE_VERSION, derive_assignment_activity, record_activity_event
+from .services import ACTIVE_TIME_RULE_VERSION, record_activity_event
 
 _EVENT_FIELDS = {
     "active_lease_id",
@@ -57,7 +56,7 @@ def _event_response(event: ActivityEvent) -> dict[str, object]:
 
 @require_POST
 def worker_activity_event_view(request: HttpRequest) -> JsonResponse:
-    actor = require_worker(request)
+    actor = require_production_worker(request)
     if isinstance(actor, JsonResponse):
         return actor
     payload = request_json(request)
@@ -156,15 +155,3 @@ def worker_activity_event_view(request: HttpRequest) -> JsonResponse:
         )
         return error_response(error_code, status=409)
     return JsonResponse(_event_response(event), status=201 if created else 200)
-
-
-@require_GET
-def worker_activity_summary_view(request: HttpRequest, assignment_id: UUID) -> JsonResponse:
-    actor = require_worker(request)
-    if isinstance(actor, JsonResponse):
-        return actor
-    try:
-        summary = derive_assignment_activity(actor=actor, assignment_id=assignment_id)
-    except ResourceNotFound:
-        return error_response(ResourceNotFound.code, status=404)
-    return JsonResponse(summary)

@@ -494,9 +494,10 @@ def test_pap_pas_sc_003_admin_creates_a_published_semi_task_from_a_frozen_artifa
 
     assert created.status_code == 201, created.content.decode()
     payload = created.json()
-    assert set(payload) == {"mode", "reused", "status", "task_id"}
+    assert set(payload) == {"mode", "previous_round_task_id", "reused", "status", "task_id"}
     assert payload["mode"] == Task.Mode.SEMI
     assert payload["reused"] is False
+    assert payload["previous_round_task_id"] is None
     assert payload["status"] == Task.Status.PUBLISHED
     task = Task.objects.get(task_id=payload["task_id"])
     assert task.asset_id == asset.asset_id
@@ -529,6 +530,46 @@ def test_pap_pas_sc_003_admin_creates_a_published_semi_task_from_a_frozen_artifa
         ).count()
         == 1
     )
+
+    next_round = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps({**request_body, "previous_round_task_id": payload["task_id"]}),
+        content_type="application/json",
+    )
+    assert next_round.status_code == 201, next_round.content.decode()
+    next_payload = next_round.json()
+    assert next_payload["task_id"] != payload["task_id"]
+    assert next_payload["previous_round_task_id"] == payload["task_id"]
+    second_round = Task.objects.get(task_id=next_payload["task_id"])
+    assert second_round.previous_round_task_id == task.task_id
+
+    next_round_retry = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps(
+            {
+                "media_variant_ids": list(reversed(request_body["media_variant_ids"])),
+                "previous_round_task_id": payload["task_id"],
+            }
+        ),
+        content_type="application/json",
+    )
+    assert next_round_retry.status_code == 200
+    assert next_round_retry.json() == {**next_payload, "reused": True}
+    assert (
+        AuditEvent.objects.filter(
+            actor=administrator, action="task.published", target_type="task"
+        ).count()
+        == 2
+    )
+
+    third_round = admin_client.post(
+        f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
+        data=json.dumps({**request_body, "previous_round_task_id": next_payload["task_id"]}),
+        content_type="application/json",
+    )
+    assert third_round.status_code == 201, third_round.content.decode()
+    assert third_round.json()["previous_round_task_id"] == next_payload["task_id"]
+    assert Task.objects.filter(asset=asset, mode=Task.Mode.SEMI).count() == 3
 
     worker_rejected = worker_client.post(
         f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks",
@@ -602,6 +643,10 @@ def test_semi_task_api_rejects_invalid_or_unknown_resources_without_side_effects
                 str(variant.media_variant_id),
             ]
         },
+        {
+            "media_variant_ids": [str(variant.media_variant_id)],
+            "previous_round_task_id": "not-a-uuid",
+        },
     ):
         response = client.post(path, data=json.dumps(body), content_type="application/json")
         assert response.status_code == 400
@@ -622,6 +667,68 @@ def test_semi_task_api_rejects_invalid_or_unknown_resources_without_side_effects
     assert missing_artifact.status_code == 404
     assert missing_artifact.json() == {"error": {"code": "resource_not_found"}}
     assert not Task.objects.filter(mode=Task.Mode.SEMI).exists()
+    assert not AuditEvent.objects.filter(action="task.published", target_type="task").exists()
+
+
+def test_semi_task_api_rejects_invalid_explicit_previous_round_without_branching() -> None:
+    asset, variant = media_contract("semi-task-previous-round")
+    additional_variant = additional_media_variant(asset, "semi-task-previous-round")
+    frozen = artifact(asset)
+    other_asset, other_variant = media_contract("semi-task-previous-round-other")
+    administrator = User.objects.create_user(
+        username="semi-task-previous-round-admin",
+        role=User.Role.ADMIN,
+        must_change_password=False,
+    )
+    client = Client()
+    client.force_login(administrator)
+    path = f"/api/admin/predictions/{frozen.artifact_id}/semi-tasks"
+    body = {"media_variant_ids": [str(variant.media_variant_id)]}
+    manual = publish_task(
+        task_id=create_task_draft(
+            asset=asset,
+            media_variants=[variant],
+            mode=Task.Mode.MANUAL,
+        ).task_id
+    )
+    other_artifact = artifact(asset, checkpoint="e" * 64)
+    mismatched_semi = publish_task(
+        task_id=create_task_draft(
+            asset=asset,
+            media_variants=[variant],
+            mode=Task.Mode.SEMI,
+            prediction_artifact=other_artifact,
+        ).task_id
+    )
+    different_media_semi = publish_task(
+        task_id=create_task_draft(
+            asset=asset,
+            media_variants=[variant, additional_variant],
+            mode=Task.Mode.SEMI,
+            prediction_artifact=frozen,
+        ).task_id
+    )
+    foreign_task = publish_task(
+        task_id=create_task_draft(
+            asset=other_asset,
+            media_variants=[other_variant],
+            mode=Task.Mode.MANUAL,
+        ).task_id
+    )
+
+    frozen_task_count = Task.objects.filter(prediction_artifact_id=frozen.artifact_id).count()
+    for previous in (manual, mismatched_semi, different_media_semi, foreign_task):
+        rejected = client.post(
+            path,
+            data=json.dumps({**body, "previous_round_task_id": str(previous.task_id)}),
+            content_type="application/json",
+        )
+        assert rejected.status_code == 409
+        assert rejected.json() == {"error": {"code": "semi_task_previous_round_invalid"}}
+
+    assert (
+        Task.objects.filter(prediction_artifact_id=frozen.artifact_id).count() == frozen_task_count
+    )
     assert not AuditEvent.objects.filter(action="task.published", target_type="task").exists()
 
 

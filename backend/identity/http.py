@@ -7,6 +7,7 @@ from uuid import UUID
 from django.http import HttpRequest, JsonResponse
 
 from .models import User
+from .services import has_current_data_notice
 
 
 def error_response(code: str, *, status: int) -> JsonResponse:
@@ -43,6 +44,20 @@ def require_worker(request: HttpRequest) -> User | JsonResponse:
         return error_response("worker_required", status=403)
     if user.must_change_password:
         return error_response("password_change_required", status=403)
+    return user
+
+
+def require_production_worker(request: HttpRequest) -> User | JsonResponse:
+    """Require a worker who may enter the production workspace.
+
+    Notice retrieval and acceptance deliberately use ``require_worker`` so a
+    worker can satisfy the prerequisite without already having access.
+    """
+    user = require_worker(request)
+    if isinstance(user, JsonResponse):
+        return user
+    if not has_current_data_notice(user):
+        return error_response("notice_acceptance_required", status=409)
     return user
 
 
