@@ -52,11 +52,11 @@ _REGISTERED_MEDIA_OBJECTS = [
     _e2e_object("incoming/e2e/compressed.jpg", _COMPRESSED_OBJECT),
     *(
         _e2e_object(f"incoming/e2e/{case}/high.png", _HIGH_RESOLUTION_OBJECT)
-        for case in ("assignment", "cancel", "drift", "expire", "repeat", "roles")
+        for case in ("assignment", "cancel", "drift", "expire", "repeat", "review", "roles")
     ),
     *(
         _e2e_object(f"incoming/e2e/{case}/compressed.jpg", _COMPRESSED_OBJECT)
-        for case in ("assignment", "cancel", "drift", "expire", "repeat", "roles")
+        for case in ("assignment", "cancel", "drift", "expire", "repeat", "review", "roles")
     ),
     *(
         _e2e_object(f"incoming/e2e/page/{index:03d}.png", _HIGH_RESOLUTION_OBJECT)
