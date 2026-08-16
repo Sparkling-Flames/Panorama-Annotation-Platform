@@ -96,7 +96,8 @@
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_activity_api.py",
-                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx",
+                "e2e/tests/assignment-switching.spec.ts"
               ]
             }
           ]
@@ -111,7 +112,8 @@
               "coverage_status": "implemented",
               "test_files": [
                 "frontend/src/assignment/AssignmentWorkspace.test.tsx",
-                "frontend/src/workspace/WorkerWorkspaceGate.test.tsx"
+                "frontend/src/workspace/WorkerWorkspaceGate.test.tsx",
+                "e2e/tests/assignment-switching.spec.ts"
               ]
             }
           ]
@@ -1071,7 +1073,10 @@
               "title": "新设备接管",
               "test_ids": ["PAP-IAM-SC-007"],
               "coverage_status": "implemented",
-              "test_files": ["e2e/tests/workspace-coordination.spec.ts"]
+              "test_files": [
+                "e2e/tests/workspace-coordination.spec.ts",
+                "e2e/tests/assignment-switching.spec.ts"
+              ]
             },
             {
               "title": "同一浏览器打开第二个标注页",

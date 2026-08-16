@@ -610,7 +610,7 @@ test("PAP-IAM-SC-012 PAP-DRR-SC-010 PAP-DRR-SC-011 PAP-DRR-SC-013 completes priv
   }
 });
 
-test("PAP-AOF-SC-007 keeps a loaded Assignment editable offline and persists recovery queues", async ({
+test("PAP-AOF-SC-007 PAP-AOF-SC-008 PAP-AOF-SC-009 PAP-IAM-SC-007 synchronizes an offline Assignment and preserves a takeover recovery copy", async ({
   browser,
 }) => {
   if (ADMIN_PASSWORD === undefined || WORKER_PASSWORD === undefined) {
@@ -618,6 +618,7 @@ test("PAP-AOF-SC-007 keeps a loaded Assignment editable offline and persists rec
   }
   const adminContext = await browser.newContext();
   const workerContext = await browser.newContext();
+  const takeoverContext = await browser.newContext();
   try {
     const adminPage = await adminContext.newPage();
     await login(adminPage, "e2e-admin", ADMIN_PASSWORD);
@@ -673,8 +674,150 @@ test("PAP-AOF-SC-007 keeps a loaded Assignment editable offline and persists rec
     expect.soft(persisted).toContain("annotation_2d_edit");
     expect.soft(persisted).toContain("0.321");
     expect.soft(persisted).toContain("0.654");
+
+    const renewedWorkspace = workerPage.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/workspace/renew") && response.request().method() === "POST",
+    );
+    const synchronizedDraft = workerPage.waitForResponse((response) => {
+      if (!response.url().endsWith("/draft") || response.request().method() !== "PUT") {
+        return false;
+      }
+      const request = response.request().postDataJSON() as {
+        state?: { pairs?: Array<{ top?: { u?: number } }> };
+      };
+      return request.state?.pairs?.[0]?.top?.u === 0.654;
+    });
+    const synchronizedActivity = workerPage.waitForResponse((response) => {
+      if (
+        !response.url().endsWith("/api/worker/activity-events") ||
+        response.request().method() !== "POST"
+      ) {
+        return false;
+      }
+      const request = response.request().postDataJSON() as {
+        assignment_id?: string;
+        interaction_type?: string;
+      };
+      return (
+        request.assignment_id === assignmentId && request.interaction_type === "annotation_2d_edit"
+      );
+    });
+    await workerContext.setOffline(false);
+    expect((await renewedWorkspace).status()).toBe(204);
+    const synchronizedDraftResponse = await synchronizedDraft;
+    expect(synchronizedDraftResponse.status()).toBe(200);
+    const synchronizedDraftBody = (await synchronizedDraftResponse.json()) as {
+      draft_version: number;
+    };
+    expect(synchronizedDraftBody.draft_version).toBeGreaterThan(0);
+    expect([200, 201]).toContain((await synchronizedActivity).status());
+    await expect(workerPage.getByText("已保存")).toBeVisible();
+    await expect
+      .poll(async () => JSON.stringify(await indexedDbContents(workerPage)))
+      .not.toContain('"event_id":');
+    await expect
+      .poll(async () => JSON.stringify(await indexedDbContents(workerPage)))
+      .toContain('"pending_patch":null');
+
+    await workerContext.setOffline(true);
+    await expect(workerPage.getByText("离线", { exact: true })).toBeVisible();
+    await topU.fill("0.777");
+    await expect
+      .poll(async () => JSON.stringify(await indexedDbContents(workerPage)))
+      .toContain("0.777");
+
+    const takeoverPage = await takeoverContext.newPage();
+    await login(takeoverPage, "e2e-offline-worker", WORKER_PASSWORD);
+    await takeoverPage.reload();
+    await expect(takeoverPage.getByText("另一设备持有工作区租约，需要明确接管。")).toBeVisible();
+    await takeoverPage.getByRole("button", { name: "接管工作区" }).click();
+    await expect(takeoverPage.getByText("工作区可编辑。")).toBeVisible();
+    await takeoverPage.getByRole("button", { name: `打开 ${taskId}` }).click();
+    const takeoverTopU = takeoverPage.getByLabel("第 1 对顶点水平坐标");
+    await expect(takeoverTopU).toHaveValue("0.654");
+    const takeoverSave = takeoverPage.waitForResponse((response) => {
+      if (!response.url().endsWith("/draft") || response.request().method() !== "PUT") {
+        return false;
+      }
+      const request = response.request().postDataJSON() as {
+        state?: { pairs?: Array<{ top?: { u?: number } }> };
+      };
+      return request.state?.pairs?.[0]?.top?.u === 0.888;
+    });
+    await takeoverTopU.fill("0.888");
+    const takeoverSaveResponse = await takeoverSave;
+    expect(takeoverSaveResponse.status()).toBe(200);
+    expect(
+      ((await takeoverSaveResponse.json()) as { draft_version: number }).draft_version,
+    ).toBeGreaterThan(synchronizedDraftBody.draft_version);
+    await expect(takeoverPage.getByText("已保存")).toBeVisible();
+
+    const rejectedRenewal = workerPage.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/workspace/renew") && response.request().method() === "POST",
+    );
+    await workerContext.setOffline(false);
+    expect((await rejectedRenewal).status()).toBe(409);
+    await expect(workerPage.getByText("工作区已失效，已保留本地恢复副本。")).toBeVisible();
+    await expect(workerPage.getByRole("alert").filter({ hasText: "工作区已被接管" })).toBeVisible();
+    await expect(topU).toBeDisabled();
+    await expect(workerPage.getByRole("button", { name: "提交 Revision" })).toBeDisabled();
+
+    const recoveryLink = workerPage.getByRole("link", { name: "导出本地恢复副本" });
+    const encodedRecovery = (await recoveryLink.getAttribute("href"))?.split(",", 2)[1] ?? "";
+    const recovery = JSON.parse(decodeURIComponent(encodedRecovery)) as {
+      assignment_id: string;
+      base_version: number;
+      draft_cycle_id: string;
+      draft_state: { pairs: Array<{ top: { u: number } }> };
+      updated_at: string | null;
+    };
+    expect(Object.keys(recovery).sort()).toEqual(
+      ["assignment_id", "base_version", "draft_cycle_id", "draft_state", "updated_at"].sort(),
+    );
+    expect(recovery).toMatchObject({
+      assignment_id: assignmentId,
+      base_version: synchronizedDraftBody.draft_version,
+      draft_state: { pairs: [{ top: { u: 0.777 } }] },
+    });
+    expect(JSON.stringify(recovery.draft_state)).not.toMatch(/https?:|versionId|token/i);
+
+    const rejectedOldWrite = await workerPage.evaluate(
+      async ({ assignmentId: currentAssignmentId, localRecovery }) => {
+        const csrfToken = document.cookie
+          .split("; ")
+          .find((cookie) => cookie.startsWith("csrftoken="))
+          ?.slice("csrftoken=".length);
+        const tabId = sessionStorage.getItem("panorama.workspace.tab-id");
+        if (csrfToken === undefined || tabId === null) {
+          throw new Error("Old workspace request context is unavailable");
+        }
+        const response = await fetch(`/api/worker/assignments/${currentAssignmentId}/draft`, {
+          body: JSON.stringify({
+            expected_draft_version: localRecovery.base_version,
+            state: localRecovery.draft_state,
+            tab_id: tabId,
+          }),
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+          method: "PUT",
+        });
+        return { body: await response.json(), status: response.status };
+      },
+      { assignmentId, localRecovery: recovery },
+    );
+    expect(rejectedOldWrite).toEqual({
+      body: { error: { code: "workspace_lease_lost" } },
+      status: 409,
+    });
+
+    await takeoverPage.reload();
+    await expect(takeoverPage.getByText("工作区可编辑。")).toBeVisible();
+    await takeoverPage.getByRole("button", { name: `打开 ${taskId}` }).click();
+    await expect(takeoverPage.getByLabel("第 1 对顶点水平坐标")).toHaveValue("0.888");
   } finally {
     await workerContext.setOffline(false);
-    await Promise.all([adminContext.close(), workerContext.close()]);
+    await Promise.all([adminContext.close(), workerContext.close(), takeoverContext.close()]);
   }
 });
