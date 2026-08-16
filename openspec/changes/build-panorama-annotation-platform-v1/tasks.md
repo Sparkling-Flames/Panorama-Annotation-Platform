@@ -170,7 +170,7 @@
 
 ## 14. 端到端验收与上线门槛
 
-- [ ] 14.1 【POC 验收】建立 Manual worker 主流程 E2E：登录改密→真实 Assignment/媒体→2D/Scope/Portal→autosave→信息性 `poc-wireframe-v1`→幂等提交不可变 Revision→管理员按权限读取同一 `state_sha`；预览不得成为提交门槛。
+- [x] 14.1 【POC 验收】建立 Manual worker 主流程 E2E：登录改密→真实 Assignment/媒体→2D/Scope/Portal→autosave→信息性 `poc-wireframe-v1`→幂等提交不可变 Revision→管理员按权限读取同一 `state_sha`；预览不得成为提交门槛。（Chromium 使用同一动态工人完成首次改密、数据告知、真实 Manual Assignment 与精确版本 COS 媒体读取；2D/Scope/Portal autosave 经刷新恢复，信息性预览与 Draft `state_sha` 对齐；首个提交已在服务端落库但响应丢失后，以同一幂等键重试得到同一 Revision，管理员读取同一 `state_sha`，Revision 2 创建后 Revision 1 仍逐字段不变。`PAP-PRV-SC-013` 组件回归另证预览生成失败不会禁用提交入口；本 E2E 的提交 DTO 精确键集合不含预览或 A-line/Manhattan 派生结果。）
 - [ ] 14.2 建立 Semi E2E：管理员导入本地 prediction→冻结 Task→工人读取→Manual 反泄漏验证→提交与共识。
 - [ ] 14.3 建立离线/冲突 E2E：断网编辑与计时→恢复同步；另一设备接管时保留 recovery copy 且不覆盖。
 - [ ] 14.4 建立动态质量 E2E：新工人→Trap PreScreen→common-anchor Calibration→production→scope/portal/geometry component aggregation→LOO 回算 provisional/verified profile→progression probe→能力—难度建议→管理员批准→后续画像更新不追溯改派。

@@ -860,7 +860,8 @@
               "coverage_status": "implemented",
               "test_files": [
                 "backend/tests/test_draft_revision_api.py",
-                "frontend/src/assignment/AssignmentWorkspace.test.tsx"
+                "frontend/src/assignment/AssignmentWorkspace.test.tsx",
+                "e2e/tests/assignment-switching.spec.ts"
               ]
             }
           ]
@@ -1030,7 +1031,11 @@
               "title": "首次登录强制改密",
               "test_ids": ["PAP-IAM-SC-003"],
               "coverage_status": "implemented",
-              "test_files": ["backend/tests/identity/test_account_access.py"]
+              "test_files": [
+                "backend/tests/identity/test_account_access.py",
+                "e2e/tests/identity-security.spec.ts",
+                "e2e/tests/assignment-switching.spec.ts"
+              ]
             },
             {
               "title": "管理员重置密码",

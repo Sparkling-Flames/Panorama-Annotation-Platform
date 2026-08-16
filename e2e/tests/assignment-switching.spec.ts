@@ -5,9 +5,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { loginViaApi as login, postJson } from "./api-helpers";
 
 const ADMIN_PASSWORD = process.env.PANORAMA_E2E_ADMIN_PASSWORD;
+const COS_ORIGIN = process.env.PANORAMA_E2E_COS_ORIGIN;
+const WORKER_CHANGED_PASSWORD = process.env.PANORAMA_E2E_WORKER_CHANGED_PASSWORD;
 const WORKER_PASSWORD = process.env.PANORAMA_E2E_WORKSPACE_WORKER_PASSWORD;
 const WORKER_ID = "00000000-0000-4000-8000-000000000007";
-const REVISION_WORKER_ID = "00000000-0000-4000-8000-000000000009";
 const OFFLINE_WORKER_ID = "00000000-0000-4000-8000-000000000010";
 const REWORK_WORKER_ID = "00000000-0000-4000-8000-000000000012";
 
@@ -104,10 +105,14 @@ test("PAP-TBA-SC-006 PAP-TBA-SC-007 switches real owned Assignments", async ({ b
   }
 });
 
-test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022 PAP-AOF-REQ-002 saves and revises canonical observations", async ({
+test("PAP-IAM-SC-003 PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-004 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022 PAP-AOF-REQ-002 completes Manual POC acceptance", async ({
   browser,
 }) => {
-  if (ADMIN_PASSWORD === undefined || WORKER_PASSWORD === undefined) {
+  if (
+    ADMIN_PASSWORD === undefined ||
+    COS_ORIGIN === undefined ||
+    WORKER_CHANGED_PASSWORD === undefined
+  ) {
     throw new Error("Missing revision E2E credentials");
   }
   const adminContext = await browser.newContext();
@@ -115,6 +120,13 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
   try {
     const adminPage = await adminContext.newPage();
     await login(adminPage, "e2e-admin", ADMIN_PASSWORD);
+    const workerUsername = "e2e-manual-poc-worker";
+    const createdWorker = await postJson(adminPage, "/api/admin/workers", {
+      username: workerUsername,
+    });
+    expect(createdWorker.status).toBe(201);
+    const worker = createdWorker.body as { temporary_password: string; worker_id: string };
+    expect(worker.worker_id).toMatch(/^[0-9a-f-]{36}$/);
     const taskId = await createAnnotationRound(adminPage);
     const batch = await postJson(adminPage, "/api/admin/work-batches", {
       name: "E2E revision batch",
@@ -123,9 +135,10 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
     const assignment = await postJson(
       adminPage,
       `/api/admin/work-batches/${(batch.body as { batch_id: string }).batch_id}/assignments`,
-      { task_id: taskId, worker_id: REVISION_WORKER_ID },
+      { task_id: taskId, worker_id: worker.worker_id },
     );
     expect(assignment.status).toBe(201);
+    const assignmentId = (assignment.body as { assignment_id: string }).assignment_id;
 
     const workerPage = await workerContext.newPage();
     const activityStatuses: number[] = [];
@@ -134,11 +147,37 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
         activityStatuses.push(response.status());
       }
     });
-    await login(workerPage, "e2e-revision-worker", WORKER_PASSWORD);
-    await workerPage.reload();
+    await workerPage.goto("/");
+    await workerPage.getByLabel("用户名").fill(workerUsername);
+    await workerPage.getByLabel("密码").fill(worker.temporary_password);
+    await workerPage.getByRole("button", { name: "登录" }).click();
+    await expect(workerPage.getByRole("heading", { name: "首次修改密码" })).toBeVisible();
+    await workerPage.getByLabel("当前密码").fill(worker.temporary_password);
+    await workerPage.getByLabel("新密码", { exact: true }).fill(WORKER_CHANGED_PASSWORD);
+    await workerPage.getByLabel("确认新密码").fill(WORKER_CHANGED_PASSWORD);
+    await workerPage.getByRole("button", { name: "修改密码" }).click();
+    await expect(workerPage.getByRole("heading", { name: "数据告知 / Data notice" })).toBeVisible();
+    await workerPage.getByRole("button", { name: "确认并继续 / Accept and continue" }).click();
     await expect(workerPage.getByText("工作区可编辑。")).toBeVisible();
+    const mediaResponse = workerPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/worker/assignments/${assignmentId}/media`) &&
+        response.request().method() === "GET",
+    );
+    const compressedCos = workerPage.waitForResponse((response) =>
+      response.url().startsWith(`${COS_ORIGIN}/incoming/e2e/assignment/compressed.jpg`),
+    );
     await workerPage.getByRole("button", { name: `打开 ${taskId}` }).click();
-
+    expect((await mediaResponse).status()).toBe(200);
+    const compressedResponse = await compressedCos;
+    expect(compressedResponse.status()).toBe(200);
+    expect(compressedResponse.url()).toContain(
+      "versionId=e2e-incoming-e2e-assignment-compressed.jpg-v1",
+    );
+    await expect(workerPage.getByLabel("当前任务全景图标注底图")).toHaveAttribute(
+      "href",
+      compressedResponse.url(),
+    );
     const activityResponse = workerPage.waitForResponse(
       (response) =>
         response.url().endsWith("/api/worker/activity-events") &&
@@ -178,30 +217,107 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
       await workerPage.getByLabel(label).fill(value);
     }
     await workerPage.getByLabel("Portal host edge").selectOption({ index: 1 });
-    const portalSave = workerPage.waitForResponse(
-      (response) => response.url().endsWith("/draft") && response.request().method() === "PUT",
-    );
+    const portalSave = workerPage.waitForResponse((response) => {
+      if (!response.url().endsWith("/draft") || response.request().method() !== "PUT") {
+        return false;
+      }
+      const request = response.request().postDataJSON() as {
+        state?: { portals?: unknown[] };
+      };
+      return request.state?.portals?.length === 1;
+    });
     await workerPage.getByRole("button", { name: "保存 Portal" }).click();
-    expect((await portalSave).status()).toBe(200);
+    const savedDraftResponse = await portalSave;
+    expect(savedDraftResponse.status()).toBe(200);
+    const savedDraft = (await savedDraftResponse.json()) as {
+      state_sha: string;
+    };
+    expect(savedDraft.state_sha).toMatch(/^[0-9a-f]{64}$/);
 
     await expect(workerPage.getByText("已保存")).toBeVisible();
-    await expect(workerPage.getByLabel("本地 3D 预览（仅供参考）")).toHaveAttribute(
-      "data-authority",
-      "informational",
-    );
-    const submitResponse = workerPage.waitForResponse(
-      (response) => response.url().endsWith("/submit") && response.request().method() === "POST",
-    );
+    const savedTopU = await workerPage.getByLabel("第 1 对顶点水平坐标").inputValue();
+
+    await workerPage.reload();
+    await expect(workerPage.getByText("工作区可编辑。")).toBeVisible();
+    await workerPage.getByRole("button", { name: `打开 ${taskId}` }).click();
+    await expect(workerPage.getByLabel("Scope / 范围判断")).toHaveValue("needs_scope_review");
+    await expect(workerPage.getByLabel("Geometry attempt / 几何完成度")).toHaveValue("partial");
+    await expect(workerPage.getByLabel("第 1 对顶点水平坐标")).toHaveValue(savedTopU);
+    await expect(workerPage.getByText("Portal 1: door / direct_visible")).toBeVisible();
+
+    const preview = workerPage.getByLabel("本地 3D 预览（仅供参考）");
+    await expect(preview).toHaveAttribute("data-authority", "informational");
+    await expect(preview).toHaveAttribute("data-engine-version", "poc-wireframe-v1");
+    await expect(preview).toHaveAttribute("data-preview-status", "current");
+    await expect(preview).toHaveAttribute("data-state-sha", savedDraft.state_sha);
+
+    type SubmissionPayload = {
+      revision_id: string;
+      revision_no: number;
+      state_sha: string;
+      submitted_at: string;
+    };
+    const submitPattern = `**/api/worker/assignments/${assignmentId}/submit`;
+    let resolveCommittedSubmission!: (value: {
+      body: SubmissionPayload;
+      request: Record<string, unknown>;
+      status: number;
+    }) => void;
+    const committedSubmission = new Promise<{
+      body: SubmissionPayload;
+      request: Record<string, unknown>;
+      status: number;
+    }>((resolve) => {
+      resolveCommittedSubmission = resolve;
+    });
+    await workerPage.route(submitPattern, async (route) => {
+      const request = route.request().postDataJSON() as Record<string, unknown>;
+      const response = await route.fetch();
+      resolveCommittedSubmission({
+        body: (await response.json()) as SubmissionPayload,
+        request,
+        status: response.status(),
+      });
+      await route.abort();
+    });
     await workerPage.getByRole("button", { name: "提交 Revision" }).click();
-    const firstSubmission = await submitResponse;
-    expect(firstSubmission.status()).toBe(201);
-    expect(firstSubmission.request().postDataJSON()).toMatchObject({
+    await expect(workerPage.getByRole("alert")).toContainText("提交结果未知");
+    await workerPage.unroute(submitPattern);
+
+    const committed = await committedSubmission;
+    const originalSubmitRequest = committed.request;
+    expect(committed.status).toBe(201);
+    expect(Object.keys(originalSubmitRequest).sort()).toEqual(
+      [
+        "client_build_sha",
+        "expected_state_sha",
+        "idempotency_key",
+        "interaction_contract_version",
+        "locale",
+        "tab_id",
+        "viewer_version",
+      ].sort(),
+    );
+    expect(originalSubmitRequest).toMatchObject({
       client_build_sha: expect.any(String),
+      expected_state_sha: savedDraft.state_sha,
+      idempotency_key: expect.any(String),
       interaction_contract_version: "annotation-interaction-v1",
       locale: "zh-CN",
       viewer_version: "annotation-viewer-v1",
     });
-    const revisionId = ((await firstSubmission.json()) as { revision_id: string }).revision_id;
+    expect(committed.body.state_sha).toBe(savedDraft.state_sha);
+
+    const retryResponse = workerPage.waitForResponse(
+      (response) => response.url().endsWith("/submit") && response.request().method() === "POST",
+    );
+    await workerPage.getByRole("button", { name: "提交 Revision" }).click();
+    const retriedSubmission = await retryResponse;
+    expect(retriedSubmission.status()).toBe(200);
+    expect(retriedSubmission.request().postDataJSON()).toEqual(originalSubmitRequest);
+    const retriedBody = (await retriedSubmission.json()) as SubmissionPayload;
+    expect(retriedBody).toEqual(committed.body);
+    const revisionId = retriedBody.revision_id;
     expect(revisionId).toMatch(/^[0-9a-f-]{36}$/);
     await expect(workerPage.getByRole("button", { name: `修订 ${taskId}` })).toBeVisible();
 
@@ -213,6 +329,7 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
     expect(revision.body).toMatchObject({
       locale: "zh-CN",
       revision_no: 1,
+      state_sha: savedDraft.state_sha,
       state: {
         geometry_attempt_status: "partial",
         scope_reason_codes: ["insufficient_evidence"],
@@ -230,7 +347,17 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
     const topU = workerPage.getByLabel("第 1 对顶点水平坐标");
     await expect(topU).toBeVisible();
     await expect(workerPage.getByText("Portal 1: door / direct_visible")).toBeVisible();
+    const revisionSave = workerPage.waitForResponse((response) => {
+      if (!response.url().endsWith("/draft") || response.request().method() !== "PUT") {
+        return false;
+      }
+      const request = response.request().postDataJSON() as {
+        state?: { pairs?: Array<{ top?: { u?: number } }> };
+      };
+      return request.state?.pairs?.[0]?.top?.u === 0.25;
+    });
     await topU.fill("0.25");
+    expect((await revisionSave).status()).toBe(200);
     await expect(workerPage.getByText("已保存")).toBeVisible();
     const resubmitResponse = workerPage.waitForResponse(
       (response) => response.url().endsWith("/submit") && response.request().method() === "POST",
@@ -250,6 +377,12 @@ test("PAP-DRR-SC-001 PAP-DRR-SC-003 PAP-DRR-SC-005 PAP-ANN-SC-017 PAP-ANN-SC-022
       revision_no: 2,
       state: { pairs: [{ top: { u: 0.25 } }] },
     });
+    expect(secondRevision.body.state_sha).not.toBe(savedDraft.state_sha);
+    const originalRevisionAfterResubmit = await adminPage.evaluate(async (id) => {
+      const response = await fetch(`/api/admin/revisions/${id}`, { credentials: "same-origin" });
+      return { body: await response.json(), status: response.status };
+    }, revisionId);
+    expect(originalRevisionAfterResubmit).toEqual(revision);
     expect(activityStatuses.filter((status) => status >= 500)).toEqual([]);
   } finally {
     await Promise.all([adminContext.close(), workerContext.close()]);
